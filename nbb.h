@@ -4,8 +4,16 @@
 #include <string.h>
 
 // BUFFER_SIZE is limited to ~32,767 since it has to be represented by an unsigned short / 2
-#define BUFFER_SIZE 100 
-#define NUM_ITEMS 1000
+#define BUFFER_SIZE 1000
+
+#define NUM_ITEMS 500000
+
+// Betting that it's some kind of malloc/mem allocation error...
+//
+// This crashes erratically
+//#define NUM_ITEMS   523909
+// This crashes always
+//#define NUM_ITEMS   524000
 
 enum { 
   BUFFER_FULL = 0, 
