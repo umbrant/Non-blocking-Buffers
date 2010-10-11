@@ -3,7 +3,7 @@ CFLAGS=-Wall -g -ggdb -std=c99
 all: nbb_multi
 
 nbb_multi: nbb.o libnbb.a nbb_multi_thread.c
-	gcc $(CFLAGS) nbb_multi_thread.c -o nbb_multi -L. -lnbb -lpthread
+	gcc $(CFLAGS) nbb_multi_thread.c -o nbb_multi -L. -lnbb -lpthread -lrt
 
 #nbb_multi_thread.o: nbb_multi_thread.c nbb.o
 #gcc $(CFLAGS) -c nbb_multi_thread.c

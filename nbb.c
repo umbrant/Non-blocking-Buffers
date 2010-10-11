@@ -7,6 +7,34 @@ unsigned short last_update_counter = 0;
 unsigned short recycle_counter = 0;
 struct obj* items[BUFFER_SIZE] = {0};
 
+// Shared memory variables
+const char* SHARED_MEM_NAME = "nbb_v1"; // TODO: should not be hardcoded
+struct pollfd read_pollfd;
+int insert_fd = -1;
+
+int init() {
+  int read_fd = -1;
+
+  memset(&read_pollfd, 0, sizeof(struct pollfd));
+
+  insert_fd = shm_open(SHARED_MEM_NAME, O_RDWR | O_CREAT, 0666);
+  if (insert_fd < 0) {
+    perror("! insert fd\n");
+    return -1;
+  }
+
+  read_fd = shm_open(SHARED_MEM_NAME, O_RDONLY, 0666);
+  if (read_fd < 0) {
+    perror("! read fd\n");
+    return SHM_ERROR;
+  }
+
+  read_pollfd.fd = read_fd;
+  read_pollfd.events = POLLIN;
+
+  return 1;
+}
+
 int copy_obj(struct obj *obj1, struct obj *obj2) {
 	// Copy size field
 	obj2->size = obj1->size;
@@ -45,7 +73,7 @@ struct obj* get_defunct_ptr() {
 int insert_item(struct obj* ptr_to_item, struct obj** ptr_to_defunct_item)
 {
   unsigned short temp_ac = ack_counter;
-
+ 
   if (last_update_counter - temp_ac == 2 * BUFFER_SIZE) {
     ptr_to_defunct_item = NULL;
     return BUFFER_FULL;
@@ -109,7 +137,7 @@ int read_item(struct obj* ref_to_item)
   return OK;
 }
 
-int read(struct obj* ptr_to_item) {
+int read_asynch(struct obj* ptr_to_item) {
 	return read_item(ptr_to_item);
 }
 
@@ -121,7 +149,7 @@ int readb(struct obj* ptr_to_item) {
 	return ret;
 }
 
-int write(struct obj* ptr_to_item) {
+int write_asynch(struct obj* ptr_to_item) {
 	struct obj *ptr_to_defunct_item = NULL;
 	int ret;
 
@@ -151,4 +179,15 @@ int writeb(struct obj* ptr_to_item) {
   }
 
   return ret;
+}
+
+int clean_mem() {
+  int ret = shm_unlink(SHARED_MEM_NAME);
+
+  if (ret < 0) {
+    perror("! shm_unlink\n");
+    return ret;
+  }
+
+  return 0;
 }

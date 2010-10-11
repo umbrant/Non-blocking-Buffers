@@ -1,6 +1,5 @@
 #include "nbb.h"
 
-
 void* insert_items(void* ptr)
 {
 	int counter = 1;
@@ -73,6 +72,12 @@ int main()
   pthread_t thread1, thread2;
   char* insert = "insert";
   char* read = "read";
+  int init_ret = -1;
+ 
+  init_ret = init();
+  if(init_ret < 0) {
+    return -1;
+  }
  
   pthread_create(&thread1, NULL, insert_items, (void*)insert);
   pthread_create(&thread2, NULL, read_items, (void*)read);
@@ -89,6 +94,8 @@ int main()
 			free_obj(defunct_obj);
 		}
 	} while(defunct_obj != NULL); 
+
+  clean_mem();
 
   return 0;
 }
