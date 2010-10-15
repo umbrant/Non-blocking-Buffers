@@ -11,18 +11,9 @@
 #include <poll.h>
 #include <unistd.h>
 
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
-#include "nameserver.h"
-
 // BUFFER_SIZE is limited to ~32,767 since it has to be represented by an unsigned short / 2
-#define BUFFER_SIZE 256 
+#define BUFFER_SIZE 1000
 #define NUM_ITEMS 500000
-
-// This should be dynamic in the future
-#define NUM_CHANNELS 10
-#define PAGE_SIZE 4096 // This should probably be found programatically
 
 // Betting that it's some kind of malloc/mem allocation error...
 //
@@ -40,37 +31,13 @@ enum {
   SHM_ERROR
 };
 
-// Simple channel abstraction
-struct channel {
-	struct buffer *read;
-	struct buffer *write;
-}
-
-// This is for a unidirectional buffer
-struct buffer {
-	// NBB counters
-	unsigned short ack_counter = 0;
-	unsigned short last_ack_counter = 0;
-	unsigned short update_counter = 0;
-	unsigned short last_update_counter = 0;
-	unsigned short recycle_counter = 0;
-
-	// Pointer to data region
+struct obj {
+	size_t size;
 	unsigned char* data;
-	unsigned short data_size;
-
-	// Array of objs within data region
-	struct channel_item items[BUFFER_SIZE];
-}
-
-// Store offset within data region and size of message
-struct channel_item {
-	unsigned short offset;
-	unsigned short size;
 };
 
 // Initialize the shared memory
-//int init();
+int init();
 
 // Copy contents of obj1 to obj2
 int copy_obj(struct obj *obj1, struct obj *obj2);
