@@ -2,57 +2,65 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <setjmp.h>
+#include <assert.h>
 
-void sighup(); /* routines child will call upon sigtrap */
-void sigusr();
-void sigquit();
+#if DEBUG
+  #define printf(...) printf(__VA_ARGS__)
+#else
+  #define printf(...)
+#endif /* DEBUG */
+
+int channel;
+int retval;
+jmp_buf place;
+
+void item_available();
 
 int main()
 { 
-  int pid;
+  int child_pid;
 
-  /* get child process */
-  
-   if ((pid = fork()) < 0) {
-        perror("fork");
-        exit(1);
+  if ((child_pid = fork()) < 0) {
+    perror("fork");
+    exit(1);
+  }
+
+  // "Consumer" 
+  if (child_pid == 0) {
+    signal(SIGUSR1, item_available);
+    retval = setjmp(place);
+
+    printf("Consumer: current pid %d, parent id %d\n", getpid(), getppid());
+
+    if(!retval) {
+      printf("No item yet\n");
     }
-    
-   if (pid == 0)
-     { /* child */
-       signal(SIGHUP,sighup); /* set function calls */
-       signal(SIGUSR1,sigusr);
-       signal(SIGQUIT, sigquit);
-       for(;;); /* loop for ever */
-     }
-  else /* parent */
-     {  /* pid hold id of child */
-       printf("\nPARENT: sending SIGHUP\n\n");
-       kill(pid,SIGHUP);
-       sleep(3); /* pause for 3 secs */
-       printf("\nPARENT: sending user defined signal\n\n");
-       kill(pid,SIGUSR1);
-       sleep(3); /* pause for 3 secs */
-       printf("\nPARENT: sending SIGQUIT\n\n");
-       kill(pid,SIGQUIT);
-       sleep(3);
-     }
+    else {
+      printf("Item is available\n");
+      /* Do stuff */
+    }
+    /* Do stuff */
+    for(;;);    
+  }
+
+  // "Producer" 
+  else { 
+    sleep(1);
+    printf("Producer: current pid %d, parent id %d\n", getpid(), getppid());
+    printf("Child pid: %d\n", child_pid);
+    kill(child_pid,SIGUSR1);
+    sleep(3);
+  }
 }
 
-void sighup()
-{  
-  signal(SIGHUP,sighup); /* reset signal */
-  printf("CHILD: I have received a SIGHUP\n");
-}
-
-void sigusr()
+void item_available()
 { 
-  signal(SIGUSR1, sigusr); /* reset signal */
-  printf("CHILD: I have received a user defined signal\n");
-}
+  printf("item_available() pid: %d, parent's pid: %d\n", getpid(), getppid());
+  signal(SIGUSR1, item_available); 
 
-void sigquit()
-{
-  printf("My DADDY has Killed me!!!\n");
-  exit(0);
+  /* Checks which channel where the item is available */
+
+  longjmp(place, 1);
+  assert(0); /* Shouldn't reach here */
 }
