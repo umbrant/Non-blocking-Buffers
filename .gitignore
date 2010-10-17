@@ -2,3 +2,5 @@
 *.a
 *.o
 nbb_multi
+client
+service

@@ -1,6 +1,13 @@
 CFLAGS=-Wall -g -ggdb -std=c99
 
-all: nbb_multi shm_prototype
+all: service client
+
+service: nbb.o libnbb.a service.c
+	gcc $(CFLAGS) service.c -o service -L. -lnbb -lpthread -lrt 
+
+client: nbb.o libnbb.a client.c
+	gcc $(CFLAGS) client.c -o client -L. -lnbb -lpthread -lrt 
+
 
 nbb_multi: nbb.o libnbb.a nbb_multi_thread.c
 	gcc $(CFLAGS) nbb_multi_thread.c -o nbb_multi -L. -lnbb -lpthread -lrt 
