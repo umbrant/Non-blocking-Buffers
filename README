@@ -1,0 +1,3 @@
+=Non-blocking Buffers=
+
+This implements lock-free communication between a single producer and consumer over shared memory in Linux. It's really not that much code, or very optimized, but it works pretty well for our CS262a research project.
