@@ -1,78 +1,139 @@
 #include "nbb.h"
 
-
 // list of channel pointers (to shared memory)
 struct channel channel_list[NUM_CHANNELS];
 
-// Called by everyone
+// Called by nameserver at initialization
+// Invariant: nameserver should be the first one that's starting
+int init_nameserver()
+{
+  if(open_channel(NAMESERVER_READ, NAMESERVER_WRITE)) {
+    return -1;
+  }
+
+  FILE* pFile;
+
+  pFile = fopen(nameserver_pid_file,"w+");
+  fprintf(pFile,"%d",(int)getpid());
+  fclose(pFile);
+
+  return 0;
+}
+
+// Called by every service at initialization
 int init_service() 
 {
-	// need to get NUM_PAGES * 2 shm pages
-	//
-	// FIXME: we only alloc the first one, since the nameserver needs to
-	// be assigning us keys in the long run.
-	
-	int shmid;
-	unsigned char * shm;
+  // Should be reversed since what's written by service is read by nameserver
+  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ)) {
+    return -1;
+  }
 
-	// Allocate 4 pages, 1 meta + 1 data for each buffer
-	// Read buffer
-	// note that we use SERVICE_TEST_WRITE, not READ, since the service's
-	// read is the client's write
-	if((shmid = shmget(SERVICE_TEST_WRITE, PAGE_SIZE*2, IPC_CREAT | 0666)) < 0) {
-		perror("shmget");
-		return -1;
-	}
-	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
-		perror("shmat");
-		return -1;
-	}
-	// Make sure the memory is zero'd out
-	memset(shm, 0, PAGE_SIZE*2);
+  FILE* pFile;
+  int nameserver_pid = 0;
 
-	channel_list[0].read = (struct buffer*) shm;
-	channel_list[0].read->data_size = PAGE_SIZE;
-	channel_list[0].read->data_offset = PAGE_SIZE;
-	channel_list[0].read_data = (unsigned char*) shm+PAGE_SIZE;
+  pFile = fopen(nameserver_pid_file, "r+"); 
+  fscanf(pFile,"%d",&nameserver_pid); 
+  fclose(pFile); 
 
-	// Write buffer. Same note as above about swapping read/write
-	shmid = -1;
-	shm = (unsigned char*) -1;
-	if((shmid = shmget(SERVICE_TEST_READ, PAGE_SIZE*2, IPC_CREAT | 0666)) < 0) {
-		perror("shmget");
-		return -1;
-	}
-	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
-		perror("shmat");
-		return -1;
-	}
-	// Make sure the memory is zero'd out
-	memset(shm, 0, PAGE_SIZE*2);
-	channel_list[0].write = (struct buffer*) (shm);
-	channel_list[0].write->data_size = PAGE_SIZE;
-	channel_list[0].write->data_offset = PAGE_SIZE;
-	channel_list[0].write_data = (unsigned char*) shm+PAGE_SIZE;
+  // TODO: Reserve the nameserver
 
-	return 0;
+  char request[strlen(service) + strlen(gui)];
+  strcat(request, service);
+  strcat(request, " \0");
+  strcat(request, gui);
+
+  insert_item(0, request, strlen(request));
+
+  printf("pid: %d\n", nameserver_pid);
+  kill(nameserver_pid, SIGUSR1);
+
+  // Release the nameserver global channel
+/*  pthread_mutex_lock(&nameserver_mutex); */
+  int retval;
+  char* recv;
+  size_t recv_len;
+
+  while(retval) {
+    retval = read_item(0, (void*)&recv, &recv_len);
+    printf("recv: %s\n", recv);
+
+    sleep(1);
+  }
+
+/*
+  pthread_cond_signal(&nameserver_mutex);
+  pthread_mutex_unlock(&nameserver_mutex);*/
+
+  return 0;
 }
+
 
 // Called by clients connecting to a server
 // Needs to map shm buffers into client's address space
 int get_channel(int* channel_id, int service) {
 
+  // Should be reversed since what's written by service is read by nameserver
+  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ)) {
+    return -1;
+  }
+
+  FILE* pFile;
+  int nameserver_pid;
+
+  pFile = fopen(nameserver_pid_file,"r+"); 
+  fscanf(pFile,"%d",&nameserver_pid); 
+  fclose(pFile); 
+
+  // Reserve the nameserver
+/*
+  pthread_mutex_lock(&nameserver_mutex);
+  while(nameserver_state != EMPTY)
+  {
+    pthread_cond_wait(&nameserver_cond, &nameserver_mutex);
+  }
+  nameserver_state = SERVER_WRITING;
+  pthread_mutex_unlock(&nameserver_mutex);
+*/
+
+  char request[strlen(client) + strlen(gui)];
+  strcat(request, client);
+  strcat(request, " \0");
+  strcat(request, gui);
+
+  insert_item(0, request, strlen(request));
+  kill(nameserver_pid, SIGUSR1);
+
+  // Release the nameserver global channel
+/*  pthread_mutex_lock(&nameserver_mutex); */
+  int retval;
+  char* recv;
+  size_t recv_len;
+
+  while(retval) {
+    retval = read_item(0, (void*)&recv, &recv_len);
+    printf("recv: %s\n", recv);
+
+    sleep(1);
+  }
+
+/*
+  pthread_cond_signal(&nameserver_mutex);
+  pthread_mutex_unlock(&nameserver_mutex);*/
+
+
 	// FIXME: This needs some nameserver goodness too, not hardcoded
 	if(service != SERVICE_TEST) {
 		return -1;
 	}
+  
+  /*
 	int readbuf = SERVICE_TEST_READ;
 	int writebuf = SERVICE_TEST_WRITE;
 
 	int shmid;
 	unsigned char * shm;
 
-	// FIXME: right now this is hardcoded to use channel[0]. Need a more
-	// dynamic way of finding a free slot and assigning it to that one,
-	// and also tracking which are in use.
+  // TODO: get free_channel()
 	int id = 0;
 	*channel_id = id;
 
@@ -107,8 +168,60 @@ int get_channel(int* channel_id, int service) {
 	channel_list[id].write_data = (unsigned char*) shm+PAGE_SIZE;
 	// Make sure the memory is zero'd out
 	//memset(shm, 0, PAGE_SIZE*2);
-
+*/
 	return 0;
+}
+
+int open_channel(int shm_read_id, int shm_write_id)
+{
+  static int count = 0;
+	int shmid;
+	unsigned char * shm;
+
+	// Allocate 4 pages, 1 meta + 1 data for each buffer
+	// Read buffer
+	// note that we use SERVICE_TEST_WRITE, not READ, since the service's
+	// read is the client's write
+	if((shmid = shmget(shm_read_id, PAGE_SIZE*2, IPC_CREAT | 0666)) < 0) {
+		perror("shmget");
+		return -1;
+	}
+	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
+		perror("shmat");
+		return -1;
+	}
+	// Make sure the memory is zero'd out
+	memset(shm, 0, PAGE_SIZE*2);
+
+  // TODO: get free_channel()
+
+	channel_list[count].read = (struct buffer*) shm;
+	channel_list[count].read->data_size = PAGE_SIZE;
+	channel_list[count].read->data_offset = PAGE_SIZE;
+	channel_list[count].read_data = (unsigned char*) shm+PAGE_SIZE;
+
+	// Write buffer. Same note as above about swapping read/write
+	shmid = -1;
+	shm = (unsigned char*) -1;
+	if((shmid = shmget(shm_write_id, PAGE_SIZE*2, IPC_CREAT | 0666)) < 0) {
+		perror("shmget");
+		return -1;
+	}
+	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
+		perror("shmat");
+		return -1;
+	}
+	// Make sure the memory is zero'd out
+	memset(shm, 0, PAGE_SIZE*2);
+
+	channel_list[count].write = (struct buffer*) (shm);
+	channel_list[count].write->data_size = PAGE_SIZE;
+	channel_list[count].write->data_offset = PAGE_SIZE;
+	channel_list[count].write_data = (unsigned char*) shm+PAGE_SIZE;
+
+  count++;
+
+  return 0;
 }
 
 int insert_item(int channel_id, void* ptr_to_item, size_t size)

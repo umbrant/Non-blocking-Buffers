@@ -13,12 +13,12 @@
 #include <fcntl.h>           
 #include <poll.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-#include "nameserver.h"
-
+#include "constants.h"
 
 // BUFFER_SIZE is limited to ~32,767 since it has to be represented by an unsigned short / 2
 #define BUFFER_SIZE 256
@@ -81,7 +81,9 @@ struct buffer {
 // Initialize the shared memory
 //int init();
 int init_service();
+int init_nameserver();
 int get_channel(int* channel_id, int service);
+int open_channel(int shm_read_id, int shm_write_id);
 
 int insert_item(int channel_id, void* ptr_to_item, size_t size);
 int read_item(int channel_id, void** ptr_to_item, size_t* size);
