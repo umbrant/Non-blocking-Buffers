@@ -1,6 +1,7 @@
 #include "nameserver.h"
 #include "nbb.h"
 
+/*
 void data_available()
 {
   char* recv;
@@ -9,7 +10,6 @@ void data_available()
   int channel_id;
 
   channel_id = 0;
-
 
   retval = read_item(channel_id, (void*)&recv, &recv_len);
   printf("read: %s\n", recv);
@@ -21,7 +21,7 @@ void data_available()
   //printf("type: %d\n", type);
 
   //handle_connection[type](strtok(NULL, " "));
-}
+}*/
 
 int main() 
 {

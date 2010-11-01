@@ -25,7 +25,6 @@
 #define NUM_ITEMS 500000
 
 // This should be dynamic in the future
-#define NUM_CHANNELS 10
 #define PAGE_SIZE 4096 // This should probably be found programatically
 
 
@@ -45,12 +44,23 @@ enum {
   SHM_ERROR
 };
 
+
+struct service_used{
+  char* service_name;
+  int pid;
+  int channel_id;
+  struct channel* channel;  
+};
+
 // Simple channel abstraction
 struct channel {
 	struct buffer *read;
 	unsigned char* read_data;
+  int read_id;
 	struct buffer *write;
 	unsigned char* write_data;
+  int write_id;
+  int in_use;
 };
 
 // Store offset within data region and size of message
@@ -80,13 +90,23 @@ struct buffer {
 
 // Initialize the shared memory
 //int init();
-int init_service();
-int init_nameserver();
-int get_channel(int* channel_id, int service);
-int open_channel(int shm_read_id, int shm_write_id);
+int init_service(int num_channels, char* name); // TODO: num_channels should grow dynamic
+int connect_service(char* service_name);
+int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create);
+int close_channel(int channel_id);
+
+// Sending a message from client to server
+int client_send(char* service_name, char* msg);
+
+// Finds a free channel slot
+// Returns the index of the free slot, if it is full, returns -1
+int free_channel_slot();
 
 int insert_item(int channel_id, void* ptr_to_item, size_t size);
 int read_item(int channel_id, void** ptr_to_item, size_t* size);
+
+// Data is available from client, called via interrupt
+void recv_client_data();
 
 // Copy contents of obj1 to obj2
 //int copy_obj(struct obj *obj1, struct obj *obj2);

@@ -1,188 +1,208 @@
 #include "nbb.h"
 
 // list of channel pointers (to shared memory)
-struct channel channel_list[NUM_CHANNELS];
+struct channel channel_list[SERVICE_MAX_CHANNELS] = {};
+struct service_used service_used[CLIENT_MAX_CHANNELS] = {};
 
-// Called by nameserver at initialization
-// Invariant: nameserver should be the first one that's starting
+// TODO: Hella hardcoded stuff for client
+int channel_id;
+int service_pid;
+
 int init_nameserver()
 {
-  if(open_channel(NAMESERVER_READ, NAMESERVER_WRITE)) {
+  FILE* pFile;
+
+  if(open_channel(NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
     return -1;
   }
 
-  FILE* pFile;
-
-  pFile = fopen(nameserver_pid_file,"w+");
+  pFile = fopen(NAMESERVER_PID_FILE,"w+");
   fprintf(pFile,"%d",(int)getpid());
   fclose(pFile);
 
   return 0;
 }
 
-// Called by every service at initialization
-int init_service() 
+int init_service(int num_channels, char* name) 
 {
+  char request[50];
+  FILE* pFile;
+  int nameserver_pid = 0;
+  char num_channel[2]; // TODO: Make it constants?
+  char pid[5];
+
   // Should be reversed since what's written by service is read by nameserver
-  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ)) {
+  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
     return -1;
   }
 
-  FILE* pFile;
-  int nameserver_pid = 0;
+  // TODO: Reserve the nameserver with semaphore
 
-  pFile = fopen(nameserver_pid_file, "r+"); 
+  sprintf(num_channel, "%d", num_channels); // TODO: How should we decide this?
+  sprintf(pid, "%d", getpid());
+
+  strcpy(request, SERVICE);
+  strcat(request, " ");
+  strcat(request, name);
+  strcat(request, " ");
+  strcat(request, num_channel); 
+  strcat(request, " ");
+  strcat(request, pid);
+
+  pFile = fopen(NAMESERVER_PID_FILE, "r+"); 
   fscanf(pFile,"%d",&nameserver_pid); 
   fclose(pFile); 
 
-  // TODO: Reserve the nameserver
-
-  char request[strlen(service) + strlen(gui)];
-  strcat(request, service);
-  strcat(request, " \0");
-  strcat(request, gui);
-
   insert_item(0, request, strlen(request));
 
-  printf("pid: %d\n", nameserver_pid);
   kill(nameserver_pid, SIGUSR1);
 
-  // Release the nameserver global channel
-/*  pthread_mutex_lock(&nameserver_mutex); */
-  int retval;
-  char* recv;
+  int retval = 1;
+  char* recv; 
   size_t recv_len;
 
-  while(retval) {
+  do{ 
     retval = read_item(0, (void*)&recv, &recv_len);
-    printf("recv: %s\n", recv);
+  } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
-    sleep(1);
+  
+  if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
+    // TODO: anything else to do? 
+    printf("! Reserving channel unsuccessful\n");
+  
+    // TODO: Release the semaphore 
+    return -1;
   }
+  else {
+    printf("** Acquired the following channels: \n", recv);
 
-/*
-  pthread_cond_signal(&nameserver_mutex);
-  pthread_mutex_unlock(&nameserver_mutex);*/
+    int i;
+    int channel;
+    for(i = 0;i < num_channels;i++) { // TODO: Could be made cleaner with atoi
+      channel = recv[i * 2] - '0';
+      if(open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT)) {
+        //TODO: service_exit();
+        return -1;
+      }
+    }
 
-  return 0;
+    signal(SIGUSR1, recv_client_data);
+
+    // TODO: Release the semaphore 
+    return 0;
+  }
 }
 
 
 // Called by clients connecting to a server
 // Needs to map shm buffers into client's address space
-int get_channel(int* channel_id, int service) {
+int connect_service(char* service_name) 
+{
+  char request[strlen(CLIENT) + strlen(service_name)];
+  FILE* pFile;
+  int nameserver_pid = 0;
+  int ret_code;
 
-  // Should be reversed since what's written by service is read by nameserver
-  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ)) {
+  // Should be reversed since what's written by client is read by nameserver
+  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
     return -1;
   }
 
-  FILE* pFile;
-  int nameserver_pid;
+  // TODO: Reserve the nameserver with semaphore
 
-  pFile = fopen(nameserver_pid_file,"r+"); 
+  strcpy(request, CLIENT);
+  strcat(request, " ");
+  strcat(request, service_name);
+
+  pFile = fopen(NAMESERVER_PID_FILE, "r+"); 
   fscanf(pFile,"%d",&nameserver_pid); 
   fclose(pFile); 
 
-  // Reserve the nameserver
-/*
-  pthread_mutex_lock(&nameserver_mutex);
-  while(nameserver_state != EMPTY)
-  {
-    pthread_cond_wait(&nameserver_cond, &nameserver_mutex);
-  }
-  nameserver_state = SERVER_WRITING;
-  pthread_mutex_unlock(&nameserver_mutex);
-*/
-
-  char request[strlen(client) + strlen(gui)];
-  strcat(request, client);
-  strcat(request, " \0");
-  strcat(request, gui);
-
   insert_item(0, request, strlen(request));
+
   kill(nameserver_pid, SIGUSR1);
 
-  // Release the nameserver global channel
-/*  pthread_mutex_lock(&nameserver_mutex); */
-  int retval;
-  char* recv;
+  int retval = 1;
+  char* recv; 
   size_t recv_len;
 
-  while(retval) {
+  do{ 
     retval = read_item(0, (void*)&recv, &recv_len);
-    printf("recv: %s\n", recv);
+  } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
-    sleep(1);
+  // TODO: anything else to do? 
+  if(!strcmp(recv, UNKNOWN_SERVICE)) {
+    printf("** Invalid service\n");
+    ret_code = -1;
+  }
+ 
+  else if(!strcmp(recv, SERVICE_BUSY)) {
+    printf("** Service too busy, not enough channel\n"); 
+    ret_code = -1;
   }
 
-/*
-  pthread_cond_signal(&nameserver_mutex);
-  pthread_mutex_unlock(&nameserver_mutex);*/
+  else {
+    char* tmp; 
+
+    tmp = strtok(recv, " ");
+    channel_id = atoi(tmp);;
+    tmp = strtok(NULL, " ");
+    service_pid = atoi(tmp);
+
+    ret_code = 0;
+
+    open_channel(channel_id + READ_WRITE_CONV, channel_id, !IPC_CREAT);
+    
+    printf("** Connecting to service successful, channel: %d service pid: %d\n", channel_id, service_pid);
+  }
 
 
-	// FIXME: This needs some nameserver goodness too, not hardcoded
-	if(service != SERVICE_TEST) {
-		return -1;
-	}
-  
-  /*
-	int readbuf = SERVICE_TEST_READ;
-	int writebuf = SERVICE_TEST_WRITE;
+  // TODO: Release the semaphore 
 
-	int shmid;
-	unsigned char * shm;
-
-  // TODO: get free_channel()
-	int id = 0;
-	*channel_id = id;
-
-	// Get the read/write buffers for SERVICE_TEST already allocated by
-	// the master
-	if((shmid = shmget(readbuf, PAGE_SIZE*2, 0666)) < 0) {
-		perror("shmget");
-		return -1;
-	}
-	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
-		perror("shmat");
-		return -1;
-	}
-	// Make sure the memory is zero'd out
-	//memset(shm, 0, PAGE_SIZE*2);
-
-	channel_list[id].read = (struct buffer*) shm;
-	channel_list[id].read_data = (unsigned char*) shm+PAGE_SIZE;
-
-	shmid = -1;
-	shm = (unsigned char*) -1;
-	// Write channel
-	if((shmid = shmget(writebuf, PAGE_SIZE*2, 0666)) < 0) {
-		perror("shmget");
-		return -1;
-	}
-	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
-		perror("shmat");
-		return -1;
-	}
-	channel_list[id].write = (struct buffer*) shm;
-	channel_list[id].write_data = (unsigned char*) shm+PAGE_SIZE;
-	// Make sure the memory is zero'd out
-	//memset(shm, 0, PAGE_SIZE*2);
-*/
-	return 0;
+	return ret_code;
 }
 
-int open_channel(int shm_read_id, int shm_write_id)
+int client_send(char* service_name, char* msg)
 {
-  static int count = 0;
+  // TODO: Still hella hardcoded
+
+  insert_item(1, msg, strlen(msg)); 
+  kill(service_pid, SIGUSR1);
+
+  return 0;
+}
+
+void recv_client_data()
+{
+  int i;
+  char* recv;
+  size_t recv_len;
+  int retval = -1;
+
+  printf("Received message\n");
+  signal(SIGUSR1, recv_client_data);
+
+  for(i = 0;i < SERVICE_MAX_CHANNELS && channel_list[i].in_use;i++) {
+    //TODO: check all the channel & reply data
+  }
+}
+
+int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
+{
 	int shmid;
 	unsigned char * shm;
+  int free_slot;
+
+  free_slot = free_channel_slot();
+  if(free_slot == -1) {
+    return -1;
+  }
 
 	// Allocate 4 pages, 1 meta + 1 data for each buffer
 	// Read buffer
 	// note that we use SERVICE_TEST_WRITE, not READ, since the service's
 	// read is the client's write
-	if((shmid = shmget(shm_read_id, PAGE_SIZE*2, IPC_CREAT | 0666)) < 0) {
+	if((shmid = shmget(shm_read_id, PAGE_SIZE*2, is_ipc_create | 0666)) < 0) {
 		perror("shmget");
 		return -1;
 	}
@@ -193,17 +213,16 @@ int open_channel(int shm_read_id, int shm_write_id)
 	// Make sure the memory is zero'd out
 	memset(shm, 0, PAGE_SIZE*2);
 
-  // TODO: get free_channel()
-
-	channel_list[count].read = (struct buffer*) shm;
-	channel_list[count].read->data_size = PAGE_SIZE;
-	channel_list[count].read->data_offset = PAGE_SIZE;
-	channel_list[count].read_data = (unsigned char*) shm+PAGE_SIZE;
+	channel_list[free_slot].read = (struct buffer*) shm;
+	channel_list[free_slot].read->data_size = PAGE_SIZE;
+	channel_list[free_slot].read->data_offset = PAGE_SIZE;
+	channel_list[free_slot].read_data = (unsigned char*) shm+PAGE_SIZE;
+  channel_list[free_slot].read_id = shm_read_id;
 
 	// Write buffer. Same note as above about swapping read/write
 	shmid = -1;
 	shm = (unsigned char*) -1;
-	if((shmid = shmget(shm_write_id, PAGE_SIZE*2, IPC_CREAT | 0666)) < 0) {
+	if((shmid = shmget(shm_write_id, PAGE_SIZE*2, is_ipc_create | 0666)) < 0) {
 		perror("shmget");
 		return -1;
 	}
@@ -214,14 +233,46 @@ int open_channel(int shm_read_id, int shm_write_id)
 	// Make sure the memory is zero'd out
 	memset(shm, 0, PAGE_SIZE*2);
 
-	channel_list[count].write = (struct buffer*) (shm);
-	channel_list[count].write->data_size = PAGE_SIZE;
-	channel_list[count].write->data_offset = PAGE_SIZE;
-	channel_list[count].write_data = (unsigned char*) shm+PAGE_SIZE;
+	channel_list[free_slot].write = (struct buffer*) (shm);
+	channel_list[free_slot].write->data_size = PAGE_SIZE;
+	channel_list[free_slot].write->data_offset = PAGE_SIZE;
+	channel_list[free_slot].write_data = (unsigned char*) shm+PAGE_SIZE;
+  channel_list[free_slot].write_id = shm_write_id;
 
-  count++;
+  channel_list[free_slot].in_use = 1;
 
   return 0;
+}
+
+int close_channel(int index)
+{
+  //TODO: Most probably buggy, needs to be checked some more
+
+  shmdt((char*)channel_list[index].read);
+  if(shmctl(channel_list[index].read_id, IPC_RMID, 0) == -1) {
+    return -1;
+  }
+
+  shmdt((char*)channel_list[index].write);
+  if(shmctl(channel_list[index].write_id, IPC_RMID, 0) == -1) {
+    return -1;
+  }
+
+  channel_list[index].in_use = 0;
+  return 0;
+}
+
+int free_channel_slot()
+{
+  int i;
+
+  for(i = 0;i < SERVICE_MAX_CHANNELS;i++) {
+    if(!channel_list[i].in_use) {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 int insert_item(int channel_id, void* ptr_to_item, size_t size)
