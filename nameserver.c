@@ -20,7 +20,7 @@ void data_available()
   handle_connection[request_type](strtok(NULL, ""));
 }
 
-//TODO: arg is sometimes messed up, ><
+//TODO: arg is somehow messed up on first connection, ><
 void handle_client(char* arg)
 {
   printf("\n** Handling client\n");
@@ -147,7 +147,7 @@ int reserve_channel(int slot)
   for(i = 0;i < TOTAL_CHANNELS;i++) {
     if(free_lists[i] == 0) {
       free_lists[i] = 1;
-      service_lists[slot].channel_ids[count] = i; 
+      service_lists[slot].channel_ids[count] = i + 1; // Since nameserver is bind to id 0 
       count++;
     }
 

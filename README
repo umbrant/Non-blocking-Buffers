@@ -1,3 +1,18 @@
 =Non-blocking Buffers=
 
 This implements lock-free communication between a single producer and consumer over shared memory in Linux. It's really not that much code, or very optimized, but it works pretty well for our CS262a research project.
+
+Nameserver will take request to get/open channels from service/clients. The format of the request will be TYPE (ie: service or client), NAMESERVER
+
+Quirkyness:
+- Interrupts only used by the person SENDING & polling is used by the person READING (We assume that the reply will not be that far into the future)
+- calloc() is used instead of malloc() in some parts of program so that no junk bytes are present
+
+Simplicity made (Possibly TODOs in the future):
+- Client could only make one connection to a unique server
+- Fixed size array is used!!!
+- Nameserver will always reside in slot 0 for simplicity & connection to it is never going to be closed.
+
+Glossary: 
+id = the actual id to refer to the shared memory segment
+slot = the slot in the array of whatever the thing (nameserver, etc) is keeping track of (eg: services registered)

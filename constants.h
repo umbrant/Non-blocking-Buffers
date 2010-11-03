@@ -6,6 +6,7 @@
 #define CLIENT_MAX_CHANNELS 5 // Total # of channels / client
 #define MAX_MSG_LEN 50
 #define READ_WRITE_CONV 1000 // Read id always differ by 1000 from write id 
+#define SEM_KEY 1337 // Semaphore identifier to be used by everyone
 
 enum {
 	SERVICE_TEST = 3000,

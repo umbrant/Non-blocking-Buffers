@@ -2,17 +2,22 @@
 
 // list of channel pointers (to shared memory)
 struct channel channel_list[SERVICE_MAX_CHANNELS] = {};
-struct service_used service_used[CLIENT_MAX_CHANNELS] = {};
+struct service_used services_used[SERVICE_MAX_CHANNELS] = {};
 
-// TODO: Hella hardcoded stuff for client
-int channel_id;
-int service_pid;
+int sem_id; // Semaphore id
 
 int init_nameserver()
 {
   FILE* pFile;
 
+  sem_id = semget(SEM_KEY, 1, 0666 | IPC_CREAT);
+  if(sem_id < 0) {
+    perror("! Unable to obtain semaphore\n");
+    return -1;
+  }
+
   if(open_channel(NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
+    perror("! Unable to open chanel\n");
     return -1;
   }
 
@@ -31,6 +36,17 @@ int init_service(int num_channels, char* name)
   char num_channel[2]; // TODO: Make it constants?
   char pid[5];
 
+  //struct sembuf operations[1]; // Array of one operation for the semaphore
+
+  sem_id = semget(SEM_KEY, 1, 0666);
+  if(sem_id < 0) {
+    perror("! Unable to obtain semaphore\n");
+    return -1;
+  }
+
+  //operations[0].sem_num = 0;
+  //operations[0].sem_
+
   // Should be reversed since what's written by service is read by nameserver
   if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
     return -1;
@@ -38,7 +54,7 @@ int init_service(int num_channels, char* name)
 
   // TODO: Reserve the nameserver with semaphore
 
-  sprintf(num_channel, "%d", num_channels); // TODO: How should we decide this?
+  sprintf(num_channel, "%d", num_channels);
   sprintf(pid, "%d", getpid());
 
   strcpy(request, SERVICE);
@@ -64,7 +80,6 @@ int init_service(int num_channels, char* name)
   do{ 
     retval = read_item(0, (void*)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
-
   
   if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
     // TODO: anything else to do? 
@@ -74,16 +89,21 @@ int init_service(int num_channels, char* name)
     return -1;
   }
   else {
-    printf("** Acquired the following channels: \n", recv);
+    printf("** Acquired the following channels: %s\n", recv);
 
     int i;
     int channel;
-    for(i = 0;i < num_channels;i++) { // TODO: Could be made cleaner with atoi
-      channel = recv[i * 2] - '0';
-      if(open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT)) {
+    char* tmp;
+
+    tmp = strtok(recv, " ");
+    for(i = 0;i < num_channels;i++) { 
+      channel = atoi(tmp);
+      if(open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
         //TODO: service_exit();
+        printf("! Failed to open the %d-th channel\n", i);
         return -1;
       }
+      tmp = strtok(NULL, " ");
     }
 
     signal(SIGUSR1, recv_client_data);
@@ -102,6 +122,12 @@ int connect_service(char* service_name)
   FILE* pFile;
   int nameserver_pid = 0;
   int ret_code;
+
+  sem_id = semget(SEM_KEY, 1, 0666);
+  if(sem_id < 0) {
+    perror("! Unable to obtain semaphore\n");
+    return -1;
+  }
 
   // Should be reversed since what's written by client is read by nameserver
   if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
@@ -143,16 +169,23 @@ int connect_service(char* service_name)
 
   else {
     char* tmp; 
+    int slot;
+    int channel_id;
+    int service_pid;
 
     tmp = strtok(recv, " ");
-    channel_id = atoi(tmp);;
+    channel_id = atoi(tmp);
     tmp = strtok(NULL, " ");
     service_pid = atoi(tmp);
 
-    ret_code = 0;
+    slot = open_channel(channel_id + READ_WRITE_CONV, channel_id, !IPC_CREAT);
 
-    open_channel(channel_id + READ_WRITE_CONV, channel_id, !IPC_CREAT);
-    
+    services_used[slot].service_name = (char*)malloc(sizeof(char)*50);
+    strcpy(services_used[slot].service_name, service_name);
+    services_used[slot].pid = service_pid;
+   
+    ret_code = slot;
+ 
     printf("** Connecting to service successful, channel: %d service pid: %d\n", channel_id, service_pid);
   }
 
@@ -164,10 +197,37 @@ int connect_service(char* service_name)
 
 int client_send(char* service_name, char* msg)
 {
-  // TODO: Still hella hardcoded
+  int i;
+  char* new_msg = (char*)calloc(strlen(msg), sizeof(char));
+  char* recv;
+  size_t recv_len;
+  int retval;
 
-  insert_item(1, msg, strlen(msg)); 
-  kill(service_pid, SIGUSR1);
+  // FIXME: Since i = 0 is already reserved for nameserver, should we change?
+  for(i = 1;i < SERVICE_MAX_CHANNELS;i++) {
+    if(channel_list[i].in_use && 
+       !strcmp(service_name, services_used[i].service_name)) {
+      break;
+    }
+  }
+
+  if(i == SERVICE_MAX_CHANNELS) {
+    perror("! Service not found\n");
+    return -1;
+  }
+
+  strcpy(new_msg, msg); 
+  insert_item(i, new_msg, strlen(msg)); 
+  kill(services_used[i].pid, SIGUSR1);
+
+  printf("** Send %s to %s\n", msg, service_name);
+
+  do{ 
+    retval = read_item(i, (void*)&recv, &recv_len);
+  } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
+
+  printf("** Received %s from the service\n", recv);
+
 
   return 0;
 }
@@ -176,15 +236,30 @@ void recv_client_data()
 {
   int i;
   char* recv;
-  size_t recv_len;
+  size_t recv_len = 0;
   int retval = -1;
+  char* reply_msg = (char*)calloc(50,sizeof(char));
 
-  printf("Received message\n");
   signal(SIGUSR1, recv_client_data);
 
-  for(i = 0;i < SERVICE_MAX_CHANNELS && channel_list[i].in_use;i++) {
-    //TODO: check all the channel & reply data
+  // FIXME: Since i = 0 is already reserved for nameserver, should we change?
+  for(i = 1;channel_list[i].in_use && i < SERVICE_MAX_CHANNELS;i++) {
+    retval = read_item(i, (void*)&recv, &recv_len);
+
+    if(retval == OK) {
+      printf("** Received %s from shm id %d\n", recv, channel_list[i].read_id);
+
+      strcpy(reply_msg, "acknowledged the message: ");
+      strcat(reply_msg, recv);
+
+      insert_item(i, reply_msg, strlen(reply_msg));
+
+      memset(recv, '\0',recv_len);
+      recv_len = 0;
+    }
   }
+
+  free(reply_msg);
 }
 
 int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
@@ -241,7 +316,7 @@ int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
 
   channel_list[free_slot].in_use = 1;
 
-  return 0;
+  return free_slot;
 }
 
 int close_channel(int index)

@@ -17,6 +17,7 @@
 
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/sem.h>
 
 #include "constants.h"
 
@@ -45,11 +46,9 @@ enum {
 };
 
 
-struct service_used{
+struct service_used {
   char* service_name;
   int pid;
-  int channel_id;
-  struct channel* channel;  
 };
 
 // Simple channel abstraction
@@ -102,11 +101,12 @@ int client_send(char* service_name, char* msg);
 // Returns the index of the free slot, if it is full, returns -1
 int free_channel_slot();
 
+// Data is available from client, called via interrupt
+void recv_client_data();
+
 int insert_item(int channel_id, void* ptr_to_item, size_t size);
 int read_item(int channel_id, void** ptr_to_item, size_t* size);
 
-// Data is available from client, called via interrupt
-void recv_client_data();
 
 // Copy contents of obj1 to obj2
 //int copy_obj(struct obj *obj1, struct obj *obj2);
