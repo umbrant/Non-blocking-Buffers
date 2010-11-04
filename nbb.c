@@ -217,7 +217,7 @@ int client_send(char* service_name, char* msg)
   }
 
   strcpy(new_msg, msg); 
-  insert_item(i, new_msg, strlen(msg)); 
+  insert_item(i, new_msg, strlen(new_msg)+1); 
   kill(services_used[i].pid, SIGUSR1);
 
   printf("** Send %s to %s\n", msg, service_name);
@@ -240,11 +240,10 @@ void recv_client_data()
   int retval = -1;
   char* reply_msg = (char*)calloc(50,sizeof(char));
 
-  signal(SIGUSR1, recv_client_data);
-
   // FIXME: Since i = 0 is already reserved for nameserver, should we change?
   for(i = 1;channel_list[i].in_use && i < SERVICE_MAX_CHANNELS;i++) {
     retval = read_item(i, (void*)&recv, &recv_len);
+    recv[recv_len] = '\0';
 
     if(retval == OK) {
       printf("** Received %s from shm id %d\n", recv, channel_list[i].read_id);
@@ -260,6 +259,8 @@ void recv_client_data()
   }
 
   free(reply_msg);
+
+  signal(SIGUSR1, recv_client_data);
 }
 
 int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)

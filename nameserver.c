@@ -12,12 +12,12 @@ void data_available()
 	int retval = -1;
   int request_type;
 
-  signal(SIGUSR1, data_available);
-
 	retval = read_item(CHANNEL_ID, (void*)&recv, &recv_len);
  
   request_type = atoi(strtok(recv, " "));
   handle_connection[request_type](strtok(NULL, ""));
+
+  signal(SIGUSR1, data_available);
 }
 
 //TODO: arg is somehow messed up on first connection, ><
