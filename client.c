@@ -2,7 +2,7 @@
 
 int main() 
 {
-	int channel_id;
+	//int channel_id;
   char* service_name = (char*)malloc(sizeof(char)*50);
 
   strcpy(service_name, GUI);

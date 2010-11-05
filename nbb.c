@@ -45,15 +45,17 @@ int init_service(int num_channels, char* name)
     return -1;
   }
 
+  // BEGIN CRITICAL SECTION
+  sem_wait(sem_id);
+
   //operations[0].sem_num = 0;
   //operations[0].sem_
 
   // Should be reversed since what's written by service is read by nameserver
   if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
+  	sem_post(sem_id);
     return -1;
   }
-
-  // TODO: Reserve the nameserver with semaphore
 
   sprintf(num_channel, "%d", num_channels);
   sprintf(pid, "%d", getpid());
@@ -86,7 +88,7 @@ int init_service(int num_channels, char* name)
     // TODO: anything else to do? 
     printf("! Reserving channel unsuccessful\n");
   
-    // TODO: Release the semaphore 
+    sem_post(sem_id);
     return -1;
   }
   else {
@@ -102,6 +104,7 @@ int init_service(int num_channels, char* name)
       if(open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
         //TODO: service_exit();
         printf("! Failed to open the %d-th channel\n", i);
+        sem_post(sem_id);
         return -1;
       }
       tmp = strtok(NULL, " ");
@@ -109,9 +112,10 @@ int init_service(int num_channels, char* name)
 
     signal(SIGUSR1, recv_client_data);
 
-    // TODO: Release the semaphore 
+    sem_post(sem_id);
     return 0;
   }
+  // END CRITICAL SECTION
 }
 
 
@@ -129,9 +133,13 @@ int connect_service(char* service_name)
     perror("! Unable to obtain semaphore\n");
     return -1;
   }
+  // BEGIN CRITICAL SECTION
+  sem_wait(sem_id);
+
 
   // Should be reversed since what's written by client is read by nameserver
   if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
+  	sem_post(sem_id);
     return -1;
   }
 
@@ -190,8 +198,8 @@ int connect_service(char* service_name)
     printf("** Connecting to service successful, channel: %d service pid: %d\n", channel_id, service_pid);
   }
 
-
-  // TODO: Release the semaphore 
+  // END CRITICAL SECTION
+  sem_post(sem_id);
 
 	return ret_code;
 }

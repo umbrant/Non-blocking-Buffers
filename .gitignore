@@ -4,3 +4,5 @@
 nbb_multi
 client
 service
+nameserver
+nameserver_pid
