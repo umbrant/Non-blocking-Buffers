@@ -19,6 +19,9 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 
+#include <sys/stat.h>
+#include <semaphore.h>
+
 #include "constants.h"
 
 // BUFFER_SIZE is limited to ~32,767 since it has to be represented by an unsigned short / 2

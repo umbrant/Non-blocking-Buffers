@@ -4,14 +4,15 @@
 struct channel channel_list[SERVICE_MAX_CHANNELS] = {};
 struct service_used services_used[SERVICE_MAX_CHANNELS] = {};
 
-int sem_id; // Semaphore id
+sem_t *sem_id;   // POSIX semaphore
 
 int init_nameserver()
 {
   FILE* pFile;
 
-  sem_id = semget(SEM_KEY, 1, 0666 | IPC_CREAT);
-  if(sem_id < 0) {
+  // XXX: Initial semaphore value? Use 1 for now...
+  sem_id = sem_open(SEM_KEY, O_CREAT | O_EXCL, 0666, 1);
+  if(sem_id == SEM_FAILED) {
     perror("! Unable to obtain semaphore\n");
     return -1;
   }
@@ -38,8 +39,8 @@ int init_service(int num_channels, char* name)
 
   //struct sembuf operations[1]; // Array of one operation for the semaphore
 
-  sem_id = semget(SEM_KEY, 1, 0666);
-  if(sem_id < 0) {
+  sem_id = sem_open(SEM_KEY, 0);
+  if(sem_id == SEM_FAILED) {
     perror("! Unable to obtain semaphore\n");
     return -1;
   }
@@ -123,8 +124,8 @@ int connect_service(char* service_name)
   int nameserver_pid = 0;
   int ret_code;
 
-  sem_id = semget(SEM_KEY, 1, 0666);
-  if(sem_id < 0) {
+  sem_id = sem_open(SEM_KEY, 0);
+  if(sem_id == SEM_FAILED) {
     perror("! Unable to obtain semaphore\n");
     return -1;
   }
