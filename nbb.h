@@ -97,6 +97,11 @@ int connect_service(char* service_name);
 int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create);
 int close_channel(int channel_id);
 
+// Callback mechanisms for nbb events
+// Hardcode for now. We can generalize the function prototype later.
+typedef void (*cb_new_conn_func)(int slot_id);
+void nbb_set_cb_new_connection(cb_new_conn_func func);
+
 // Sending a message from client to server
 int client_send(char* service_name, char* msg);
 

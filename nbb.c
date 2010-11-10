@@ -6,12 +6,19 @@ struct service_used services_used[SERVICE_MAX_CHANNELS] = {};
 
 sem_t *sem_id;   // POSIX semaphore
 
+// When a client connect_service()s to a service, this message is
+// sent to the service to note the new incoming connection.
+#define NOTIFY_MSG "**Q_Q**"
+static const char *notify_msg = NOTIFY_MSG;
+static const int notify_msg_len = sizeof(NOTIFY_MSG) - 1;
+static cb_new_conn_func new_connection_callback = NULL;
+
 int init_nameserver()
 {
   FILE* pFile;
 
   // XXX: Initial semaphore value? Use 1 for now...
-  sem_id = sem_open(SEM_KEY, O_CREAT | O_EXCL, 0666, 1);
+  sem_id = sem_open(SEM_KEY, O_CREAT, 0666, 1);
   if(sem_id == SEM_FAILED) {
     perror("! Unable to obtain semaphore\n");
     return -1;
@@ -196,12 +203,22 @@ int connect_service(char* service_name)
     ret_code = slot;
  
     printf("** Connecting to service successful, channel: %d service pid: %d\n", channel_id, service_pid);
+
+    // Notify service of the new connection by sending a dummy message
+    if (client_send(service_name, notify_msg)) {
+        printf("** Can't notify service '%s' of new connection\n", service_name);
+    }
   }
 
   // END CRITICAL SECTION
   sem_post(sem_id);
 
 	return ret_code;
+}
+
+void nbb_set_cb_new_connection(cb_new_conn_func func)
+{
+    new_connection_callback = func;
 }
 
 int client_send(char* service_name, char* msg)
@@ -229,14 +246,13 @@ int client_send(char* service_name, char* msg)
   insert_item(i, new_msg, strlen(new_msg)+1); 
   kill(services_used[i].pid, SIGUSR1);
 
-  printf("** Send %s to %s\n", msg, service_name);
+  printf("** Send '%s' to %s\n", msg, service_name);
 
   do{ 
     retval = read_item(i, (void*)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
-  printf("** Received %s from the service\n", recv);
-
+  printf("** Received '%.*s' from the service\n", recv_len, recv);
 
   return 0;
 }
@@ -252,10 +268,19 @@ void recv_client_data()
   // FIXME: Since i = 0 is already reserved for nameserver, should we change?
   for(i = 1;channel_list[i].in_use && i < SERVICE_MAX_CHANNELS;i++) {
     retval = read_item(i, (void*)&recv, &recv_len);
-    recv[recv_len] = '\0';
 
     if(retval == OK) {
-      printf("** Received %s from shm id %d\n", recv, channel_list[i].read_id);
+      // Notify of new connection on slot i
+      if (new_connection_callback != NULL) {
+        // Received data includes null byte
+        if (recv_len == notify_msg_len + 1 &&
+            memcmp(recv, notify_msg, notify_msg_len + 1) == 0) {
+            new_connection_callback(i);
+        }
+      }
+
+      printf("** Received '%.*s' from shm id %d\n",
+             recv_len, recv, channel_list[i].read_id);
 
       strcpy(reply_msg, "acknowledged the message: ");
       strcat(reply_msg, recv);
