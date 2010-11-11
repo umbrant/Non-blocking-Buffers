@@ -5,14 +5,14 @@
 service_t service_lists[NUM_SERVICES] = {}; 
 int free_lists[TOTAL_CHANNELS] = {};
 
-void data_available()
+void data_available(int signum)
 {
 	char* recv;
   size_t recv_len;
 	int retval = -1;
   int request_type;
 
-	retval = read_item(CHANNEL_ID, (void*)&recv, &recv_len);
+	retval = read_item(CHANNEL_ID, (void**)&recv, &recv_len);
  
   request_type = atoi(strtok(recv, " "));
   handle_connection[request_type](strtok(NULL, ""));

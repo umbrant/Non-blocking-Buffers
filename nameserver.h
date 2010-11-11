@@ -31,7 +31,7 @@ int reserve_service_slot();
 
 // Control jumps to this function when nameserver receives new data
 // via signal
-void data_available();
+void data_available(int signum);
 
 // Allocate new channel to a particular service
 int reserve_channel(int slot);
