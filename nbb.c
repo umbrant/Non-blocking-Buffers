@@ -154,7 +154,6 @@ int connect_service(char* service_name)
   strcat(request, " ");
   strcat(request, service_name);
 
-printf("Initial request: %s\n", request);
   recv = nameserver_connect(request);
 
   if(!recv) {
@@ -211,7 +210,7 @@ void nbb_set_cb_new_connection(cb_new_conn_func func)
     new_connection_callback = func;
 }
 
-int client_send(char* service_name, char* msg)
+int client_send(const char* service_name, const char* msg)
 {
   int i;
   char* new_msg = (char*)calloc(strlen(msg), sizeof(char));
@@ -239,7 +238,7 @@ int client_send(char* service_name, char* msg)
   printf("** Send '%s' to %s\n", msg, service_name);
 
   do{ 
-    retval = read_item(i, (void*)&recv, &recv_len);
+    retval = read_item(i, (void**)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
   if(strcmp(recv, NOTIFY_MSG)) {
@@ -251,7 +250,7 @@ int client_send(char* service_name, char* msg)
   return 0;
 }
 
-void recv_client_data()
+void recv_client_data(int signum)
 {
   int i;
   char* recv;
@@ -261,7 +260,7 @@ void recv_client_data()
 
   // Since i = 0 is already reserved for nameserver
   for(i = 1;channel_list[i].in_use && i < SERVICE_MAX_CHANNELS;i++) {
-    retval = read_item(i, (void*)&recv, &recv_len);
+    retval = read_item(i, (void**)&recv, &recv_len);
 
     if(retval == OK) {
       // Notify of new connection on slot i
@@ -274,7 +273,7 @@ void recv_client_data()
       }
 
       printf("** Received '%.*s' from shm id %d\n",
-             recv_len, recv, channel_list[i].read_id);
+             (int) recv_len, recv, channel_list[i].read_id);
 
       reply_msg = (char*)calloc(recv_len, sizeof(char));
 
@@ -314,7 +313,7 @@ int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
 		perror("shmget");
 		return -1;
 	}
-	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
+	if((shm = (unsigned char *) shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
 		perror("shmat");
 		return -1;
 	}
@@ -335,7 +334,7 @@ int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
 		perror("shmget");
 		return -1;
 	}
-	if((shm = shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
+	if((shm = (unsigned char *) shmat(shmid, NULL, 0)) == (unsigned char*) -1) {
 		perror("shmat");
 		return -1;
 	}

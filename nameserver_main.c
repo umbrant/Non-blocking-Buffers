@@ -2,7 +2,7 @@
 #include "nbb.h"
 
 /*
-void data_available()
+void data_available(int signum)
 {
   char* recv;
   size_t recv_len;

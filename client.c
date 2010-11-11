@@ -32,6 +32,7 @@ int main()
       continue;
     }
 
+    memset(array, '\0', strlen(array));
     array = (char*)realloc(array, sizeof(char) * size);
     read_bytes(1, size, array);
 

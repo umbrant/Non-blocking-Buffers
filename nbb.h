@@ -93,7 +93,6 @@ struct buffer {
 	struct channel_item items[BUFFER_SIZE];
 };
 
-
 // Initialize the service 
 int init_service(int num_channels, char* name);
 
@@ -113,14 +112,14 @@ typedef void (*cb_new_conn_func)(int slot_id);
 void nbb_set_cb_new_connection(cb_new_conn_func func);
 
 // Sending a message from client to server
-int client_send(char* service_name, char* msg);
+int client_send(const char* service_name, const char* msg);
 
 // Finds a free channel slot
 // Returns the index of the free slot, if it is full, returns -1
 int free_channel_slot();
 
 // Data is available from client, called via interrupt
-void recv_client_data();
+void recv_client_data(int signum);
 
 // Flush stuffs in shm to intermediate buffer to allow finer granularity
 void flush_shm(int slot, char* array_to_flush, int size);
