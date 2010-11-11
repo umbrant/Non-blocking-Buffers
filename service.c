@@ -10,9 +10,9 @@ static void on_new_connection(int slot_id)
 int main() 
 {
   char* service_name = (char*)malloc(sizeof(char)*50);
-  strcpy(service_name, GUI);
 
-    nbb_set_cb_new_connection(on_new_connection);
+  strcpy(service_name, GUI);
+  nbb_set_cb_new_connection(on_new_connection);
 
 	if(init_service(NUM_CHANNELS, service_name)) {
 		printf("Error initializing as service, failing!\n");

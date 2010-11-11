@@ -2,8 +2,10 @@
 
 int main() 
 {
-	//int channel_id;
   char* service_name = (char*)malloc(sizeof(char)*50);
+	char* msg = (char*)malloc(50*sizeof(char));
+  int size;
+  char* array = (char*)malloc(sizeof(char));
 
   strcpy(service_name, GUI);
 
@@ -12,18 +14,36 @@ int main()
 		return -1;
 	}
 
-	//char* service_name = (char*)malloc(50*sizeof(char));
-	char* msg = (char*)malloc(50*sizeof(char));
-
   while(1) {
-/*
-    printf("Enter server name: ");
-    scanf("%s", service_name);
-*/
-
     printf("Enter message to send to server: ");
     scanf("%s", msg);
 
     client_send(service_name, msg); 
+
+    printf("bytes available: %d\n", bytes_available(1)); //hardcoded, xD
+    printf("How many bytes do you want to read: ");
+    scanf("%d", &size);
+
+    if(size == -1) {
+      break;
+    }
+
+    if(size > bytes_available(1)) {
+      continue;
+    }
+
+    array = (char*)realloc(array, sizeof(char) * size);
+    read_bytes(1, size, array);
+
+    printf("read bytes: %s\n", array);
   }
+
+  printf("\n********Statistic********\n");
+  printf("bytes_available: %d\n", bytes_available(1));
+  printf("bytes_read: %d\n", bytes_read(1));
+  printf("bytes_written: %d\n", bytes_written(1));
+
+  free(array);
+  free(msg);
+  free(service_name);
 }

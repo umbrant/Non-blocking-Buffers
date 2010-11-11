@@ -59,9 +59,13 @@ struct channel {
 	struct buffer *read;
 	unsigned char* read_data;
   int read_id;
+  int read_count;
+
 	struct buffer *write;
 	unsigned char* write_data;
   int write_id;
+  int write_count;
+
   int in_use;
 };
 
@@ -90,10 +94,16 @@ struct buffer {
 };
 
 
-// Initialize the shared memory
-//int init();
-int init_service(int num_channels, char* name); // TODO: num_channels should grow dynamic
+// Initialize the service 
+int init_service(int num_channels, char* name);
+
+// Client tries to connect to a certain service
 int connect_service(char* service_name);
+
+// Communicate with the nameserver
+char* nameserver_connect(char* request);
+
+// Open & close channels
 int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create);
 int close_channel(int channel_id);
 
@@ -112,9 +122,20 @@ int free_channel_slot();
 // Data is available from client, called via interrupt
 void recv_client_data();
 
+// Flush stuffs in shm to intermediate buffer to allow finer granularity
+void flush_shm(int slot, char* array_to_flush, int size);
+
+// Read a specified number of bytes from the shm
+int read_bytes(int slot, int size, void* buf);
+
+// Simple utility functions that should be self-explanatory
+int bytes_available(int slot);
+int bytes_read(int slot);
+int bytes_written(int slot);
+ 
+// Insert/read item from the NBB
 int insert_item(int channel_id, void* ptr_to_item, size_t size);
 int read_item(int channel_id, void** ptr_to_item, size_t* size);
-
 
 // Copy contents of obj1 to obj2
 //int copy_obj(struct obj *obj1, struct obj *obj2);

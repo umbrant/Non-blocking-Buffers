@@ -1,6 +1,7 @@
 CFLAGS=-Wall -g -ggdb -std=c99
 
 all: service client nameserver_main
+	rm -rf *.o
 
 service: nbb.o libnbb.a service.c
 	gcc $(CFLAGS) service.c -o service -L. -lnbb -lpthread -lrt 
@@ -10,9 +11,6 @@ client: nbb.o libnbb.a client.c
 
 nameserver_main: libnbb.a libnameserver.a nameserver_main.c
 	gcc $(CFLAGS) nameserver_main.c -o nameserver -L. -lnbb -lnameserver -lpthread -lrt 
-
-nbb_multi: nbb.o libnbb.a nbb_multi_thread.c
-	gcc $(CFLAGS) nbb_multi_thread.c -o nbb_multi -L. -lnbb -lpthread -lrt 
 
 # shared library
 libnbb.so.1.0.1: nbb.c

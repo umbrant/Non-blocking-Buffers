@@ -4,6 +4,15 @@
 struct channel channel_list[SERVICE_MAX_CHANNELS] = {};
 struct service_used services_used[SERVICE_MAX_CHANNELS] = {};
 
+typedef struct delay_buffer
+{
+  char* content;
+  int len;
+  int read_count;
+} delay_buffer_t;
+
+delay_buffer_t delay_buffers[SERVICE_MAX_CHANNELS];
+
 sem_t *sem_id;   // POSIX semaphore
 
 // When a client connect_service()s to a service, this message is
@@ -12,6 +21,33 @@ sem_t *sem_id;   // POSIX semaphore
 static const char *notify_msg = NOTIFY_MSG;
 static const int notify_msg_len = sizeof(NOTIFY_MSG) - 1;
 static cb_new_conn_func new_connection_callback = NULL;
+
+char* nameserver_connect(char* request)
+{
+	int nameserver_pid = 0;
+  FILE* pFile;
+  int retval;
+  char* recv; 
+  size_t recv_len;
+
+  // Should be reversed since what's written by service is read by nameserver
+  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
+    return NULL;
+  }
+
+  pFile = fopen(NAMESERVER_PID_FILE, "r+"); 
+  fscanf(pFile,"%d",&nameserver_pid); 
+  fclose(pFile); 
+
+  insert_item(0, request, strlen(request));
+  kill(nameserver_pid, SIGUSR1);
+
+  do{ 
+    retval = read_item(0, (void*)&recv, &recv_len);
+  } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
+
+  return recv;
+}
 
 int init_nameserver()
 {
@@ -39,12 +75,9 @@ int init_nameserver()
 int init_service(int num_channels, char* name) 
 {
   char request[50];
-  FILE* pFile;
-  int nameserver_pid = 0;
   char num_channel[2]; // TODO: Make it constants?
+  char* recv;
   char pid[5];
-
-  //struct sembuf operations[1]; // Array of one operation for the semaphore
 
   sem_id = sem_open(SEM_KEY, 0);
   if(sem_id == SEM_FAILED) {
@@ -53,16 +86,7 @@ int init_service(int num_channels, char* name)
   }
 
   // BEGIN CRITICAL SECTION
-  sem_wait(sem_id);
-
-  //operations[0].sem_num = 0;
-  //operations[0].sem_
-
-  // Should be reversed since what's written by service is read by nameserver
-  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
-  	sem_post(sem_id);
-    return -1;
-  }
+  //TODO: sem_wait(sem_id);
 
   sprintf(num_channel, "%d", num_channels);
   sprintf(pid, "%d", getpid());
@@ -75,24 +99,9 @@ int init_service(int num_channels, char* name)
   strcat(request, " ");
   strcat(request, pid);
 
-  pFile = fopen(NAMESERVER_PID_FILE, "r+"); 
-  fscanf(pFile,"%d",&nameserver_pid); 
-  fclose(pFile); 
+  recv = nameserver_connect(request);
 
-  insert_item(0, request, strlen(request));
-
-  kill(nameserver_pid, SIGUSR1);
-
-  int retval = 1;
-  char* recv; 
-  size_t recv_len;
-
-  do{ 
-    retval = read_item(0, (void*)&recv, &recv_len);
-  } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
-  
   if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
-    // TODO: anything else to do? 
     printf("! Reserving channel unsuccessful\n");
   
     sem_post(sem_id);
@@ -125,15 +134,13 @@ int init_service(int num_channels, char* name)
   // END CRITICAL SECTION
 }
 
-
 // Called by clients connecting to a server
 // Needs to map shm buffers into client's address space
 int connect_service(char* service_name) 
 {
-  char request[strlen(CLIENT) + strlen(service_name)];
-  FILE* pFile;
-  int nameserver_pid = 0;
+  char request[50];
   int ret_code;
+  char* recv;
 
   sem_id = sem_open(SEM_KEY, 0);
   if(sem_id == SEM_FAILED) {
@@ -143,37 +150,18 @@ int connect_service(char* service_name)
   // BEGIN CRITICAL SECTION
   sem_wait(sem_id);
 
-
-  // Should be reversed since what's written by client is read by nameserver
-  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
-  	sem_post(sem_id);
-    return -1;
-  }
-
-  // TODO: Reserve the nameserver with semaphore
-
   strcpy(request, CLIENT);
   strcat(request, " ");
   strcat(request, service_name);
 
-  pFile = fopen(NAMESERVER_PID_FILE, "r+"); 
-  fscanf(pFile,"%d",&nameserver_pid); 
-  fclose(pFile); 
+printf("Initial request: %s\n", request);
+  recv = nameserver_connect(request);
 
-  insert_item(0, request, strlen(request));
+  if(!recv) {
+    ret_code = -1;
+  }
 
-  kill(nameserver_pid, SIGUSR1);
-
-  int retval = 1;
-  char* recv; 
-  size_t recv_len;
-
-  do{ 
-    retval = read_item(0, (void*)&recv, &recv_len);
-  } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
-
-  // TODO: anything else to do? 
-  if(!strcmp(recv, UNKNOWN_SERVICE)) {
+  else if(!strcmp(recv, UNKNOWN_SERVICE)) {
     printf("** Invalid service\n");
     ret_code = -1;
   }
@@ -202,12 +190,14 @@ int connect_service(char* service_name)
    
     ret_code = slot;
  
-    printf("** Connecting to service successful, channel: %d service pid: %d\n", channel_id, service_pid);
 
     // Notify service of the new connection by sending a dummy message
     if (client_send(service_name, notify_msg)) {
-        printf("** Can't notify service '%s' of new connection\n", service_name);
+      printf("** Can't notify service '%s' of new connection\n", service_name);
+      ret_code = -1;
     }
+    
+    printf("** Connecting to service successful, channel: %d service pid: %d\n", channel_id, service_pid);
   }
 
   // END CRITICAL SECTION
@@ -229,7 +219,7 @@ int client_send(char* service_name, char* msg)
   size_t recv_len;
   int retval;
 
-  // FIXME: Since i = 0 is already reserved for nameserver, should we change?
+  // Since i = 0 is already reserved for nameserver
   for(i = 1;i < SERVICE_MAX_CHANNELS;i++) {
     if(channel_list[i].in_use && 
        !strcmp(service_name, services_used[i].service_name)) {
@@ -252,6 +242,10 @@ int client_send(char* service_name, char* msg)
     retval = read_item(i, (void*)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
+  if(strcmp(recv, NOTIFY_MSG)) {
+    flush_shm(i, recv, recv_len);
+  }
+
   printf("** Received '%.*s' from the service\n", recv_len, recv);
 
   return 0;
@@ -263,9 +257,9 @@ void recv_client_data()
   char* recv;
   size_t recv_len = 0;
   int retval = -1;
-  char* reply_msg = (char*)calloc(50,sizeof(char));
+  char* reply_msg;
 
-  // FIXME: Since i = 0 is already reserved for nameserver, should we change?
+  // Since i = 0 is already reserved for nameserver
   for(i = 1;channel_list[i].in_use && i < SERVICE_MAX_CHANNELS;i++) {
     retval = read_item(i, (void*)&recv, &recv_len);
 
@@ -282,17 +276,21 @@ void recv_client_data()
       printf("** Received '%.*s' from shm id %d\n",
              recv_len, recv, channel_list[i].read_id);
 
-      strcpy(reply_msg, "acknowledged the message: ");
+      reply_msg = (char*)calloc(recv_len, sizeof(char));
+
+      if(strcmp(recv, NOTIFY_MSG)) {
+        flush_shm(i, recv, recv_len);
+      }
+
+      // Reply message
+      //strcpy(reply_msg, "acknowledged the message: ");
       strcat(reply_msg, recv);
+      insert_item(i, reply_msg, recv_len);
 
-      insert_item(i, reply_msg, strlen(reply_msg));
-
-      memset(recv, '\0',recv_len);
       recv_len = 0;
+      free(reply_msg);
     }
   }
-
-  free(reply_msg);
 
   signal(SIGUSR1, recv_client_data);
 }
@@ -328,6 +326,7 @@ int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
 	channel_list[free_slot].read->data_offset = PAGE_SIZE;
 	channel_list[free_slot].read_data = (unsigned char*) shm+PAGE_SIZE;
   channel_list[free_slot].read_id = shm_read_id;
+  channel_list[free_slot].read_count = 0;
 
 	// Write buffer. Same note as above about swapping read/write
 	shmid = -1;
@@ -348,8 +347,11 @@ int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
 	channel_list[free_slot].write->data_offset = PAGE_SIZE;
 	channel_list[free_slot].write_data = (unsigned char*) shm+PAGE_SIZE;
   channel_list[free_slot].write_id = shm_write_id;
+  channel_list[free_slot].write_count = 0;
 
   channel_list[free_slot].in_use = 1;
+
+  delay_buffers[free_slot].len = 0;
 
   return free_slot;
 }
@@ -383,6 +385,65 @@ int free_channel_slot()
   }
 
   return -1;
+}
+
+int read_bytes(int slot, int size, void* buf)
+{
+  delay_buffer_t* delay_buffer = &(delay_buffers[slot]);
+  int new_len = delay_buffer->len - size;
+  char* tmp;
+
+  if(!size) {
+    return -1;
+  }
+
+  if(new_len <= 0) {
+    perror("! Not enough bytes\n");
+    return -1;
+  }
+
+  tmp = (char*)malloc(new_len);
+
+  memcpy(buf, delay_buffer->content, size);
+  memcpy(tmp, delay_buffer->content + size, new_len); 
+
+  delay_buffer->content = (char*)realloc(delay_buffer->content, new_len);
+  memcpy(delay_buffer->content, tmp, new_len); 
+  delay_buffer->len = new_len;
+
+  channel_list[slot].read_count += size;
+
+  return 0;
+}
+
+int bytes_available(int slot)
+{
+  return delay_buffers[slot].len;
+}
+
+int bytes_read(int slot)
+{
+  return channel_list[slot].read_count;
+}
+
+int bytes_written(int slot)
+{
+  return channel_list[slot].write_count;
+}
+
+void flush_shm(int slot, char* array_to_flush, int size)
+{
+  delay_buffer_t* buffer = &(delay_buffers[slot]);
+  char* tmp = (char*)malloc(sizeof(char) * buffer->len);
+
+  memcpy(tmp, buffer->content, buffer->len);
+
+  buffer->content = (char*)realloc(buffer->content, size + buffer->len);
+  memcpy(buffer->content, tmp, buffer->len);
+  memcpy(buffer->content + buffer->len, array_to_flush, size);
+  buffer->len += size - 1;
+
+  printf("** Intermediate buffer content: %s\n", buffer->content);
 }
 
 int insert_item(int channel_id, void* ptr_to_item, size_t size)
@@ -451,6 +512,10 @@ int insert_item(int channel_id, void* ptr_to_item, size_t size)
   //}
 
   buf->last_update_counter = buf->update_counter;
+ 
+  if(memcmp(NOTIFY_MSG, ptr_to_item, sizeof(NOTIFY_MSG))) {
+    channel_list[channel_id].write_count += (size - 1); // Excluding '\0'
+  }
 
   return OK;
 }

@@ -16,3 +16,4 @@ Simplicity made (Possibly TODOs in the future):
 Glossary: 
 id = the actual id to refer to the shared memory segment
 slot = the slot in the array of whatever the thing (nameserver, etc) is keeping track of (eg: services registered)
+**Q_Q** = Special message that's used for the client to register itself to the server

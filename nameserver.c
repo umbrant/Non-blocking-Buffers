@@ -14,6 +14,8 @@ void data_available()
 
 	retval = read_item(CHANNEL_ID, (void*)&recv, &recv_len);
  
+printf("nameserver recv: %s\n", recv);
+
   request_type = atoi(strtok(recv, " "));
   handle_connection[request_type](strtok(NULL, ""));
 
