@@ -3,26 +3,18 @@
 // list of channel pointers (to shared memory)
 struct channel channel_list[SERVICE_MAX_CHANNELS] = {};
 struct service_used services_used[SERVICE_MAX_CHANNELS] = {};
-
-typedef struct delay_buffer
-{
-  char* content;
-  int len;
-  int read_count;
-} delay_buffer_t;
-
 delay_buffer_t delay_buffers[SERVICE_MAX_CHANNELS];
 
 sem_t *sem_id;   // POSIX semaphore
 
-// When a client connect_service()s to a service, this message is
+// When a client nbb_connect_service()s to a service, this message is
 // sent to the service to note the new incoming connection.
 #define NOTIFY_MSG "**Q_Q**"
 static const char *notify_msg = NOTIFY_MSG;
 static const int notify_msg_len = sizeof(NOTIFY_MSG) - 1;
 static cb_new_conn_func new_connection_callback = NULL;
 
-char* nameserver_connect(char* request)
+char* nbb_nameserver_connect(const char* request)
 {
 	int nameserver_pid = 0;
   FILE* pFile;
@@ -31,7 +23,7 @@ char* nameserver_connect(char* request)
   size_t recv_len;
 
   // Should be reversed since what's written by service is read by nameserver
-  if(open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
+  if(nbb_open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
     return NULL;
   }
 
@@ -39,11 +31,11 @@ char* nameserver_connect(char* request)
   fscanf(pFile,"%d",&nameserver_pid); 
   fclose(pFile); 
 
-  insert_item(0, request, strlen(request));
+  nbb_insert_item(0, request, strlen(request));
   kill(nameserver_pid, SIGUSR1);
 
   do{ 
-    retval = read_item(0, (void*)&recv, &recv_len);
+    retval = nbb_read_item(0, (void**)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
   return recv;
@@ -60,7 +52,7 @@ int init_nameserver()
     return -1;
   }
 
-  if(open_channel(NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
+  if(nbb_open_channel(NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
     perror("! Unable to open chanel\n");
     return -1;
   }
@@ -72,7 +64,7 @@ int init_nameserver()
   return 0;
 }
 
-int init_service(int num_channels, char* name) 
+int nbb_init_service(int num_channels, const char* name) 
 {
   char request[50];
   char num_channel[2]; // TODO: Make it constants?
@@ -99,7 +91,7 @@ int init_service(int num_channels, char* name)
   strcat(request, " ");
   strcat(request, pid);
 
-  recv = nameserver_connect(request);
+  recv = nbb_nameserver_connect(request);
 
   if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
     printf("! Reserving channel unsuccessful\n");
@@ -117,7 +109,7 @@ int init_service(int num_channels, char* name)
     tmp = strtok(recv, " ");
     for(i = 0;i < num_channels;i++) { 
       channel = atoi(tmp);
-      if(open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
+      if(nbb_open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
         //TODO: service_exit();
         printf("! Failed to open the %d-th channel\n", i);
         sem_post(sem_id);
@@ -126,7 +118,7 @@ int init_service(int num_channels, char* name)
       tmp = strtok(NULL, " ");
     }
 
-    signal(SIGUSR1, recv_client_data);
+    signal(SIGUSR1, nbb_recv_client_data);
 
     sem_post(sem_id);
     return 0;
@@ -136,7 +128,7 @@ int init_service(int num_channels, char* name)
 
 // Called by clients connecting to a server
 // Needs to map shm buffers into client's address space
-int connect_service(char* service_name) 
+int nbb_connect_service(const char* service_name) 
 {
   char request[50];
   int ret_code;
@@ -154,7 +146,7 @@ int connect_service(char* service_name)
   strcat(request, " ");
   strcat(request, service_name);
 
-  recv = nameserver_connect(request);
+  recv = nbb_nameserver_connect(request);
 
   if(!recv) {
     ret_code = -1;
@@ -181,7 +173,7 @@ int connect_service(char* service_name)
     tmp = strtok(NULL, " ");
     service_pid = atoi(tmp);
 
-    slot = open_channel(channel_id + READ_WRITE_CONV, channel_id, !IPC_CREAT);
+    slot = nbb_open_channel(channel_id + READ_WRITE_CONV, channel_id, !IPC_CREAT);
 
     services_used[slot].service_name = (char*)malloc(sizeof(char)*50);
     strcpy(services_used[slot].service_name, service_name);
@@ -191,7 +183,7 @@ int connect_service(char* service_name)
  
 
     // Notify service of the new connection by sending a dummy message
-    if (client_send(service_name, notify_msg)) {
+    if (nbb_client_send(service_name, notify_msg)) {
       printf("** Can't notify service '%s' of new connection\n", service_name);
       ret_code = -1;
     }
@@ -210,7 +202,7 @@ void nbb_set_cb_new_connection(cb_new_conn_func func)
     new_connection_callback = func;
 }
 
-int client_send(const char* service_name, const char* msg)
+int nbb_client_send(const char* service_name, const char* msg)
 {
   int i;
   char* new_msg = (char*)calloc(strlen(msg), sizeof(char));
@@ -232,25 +224,25 @@ int client_send(const char* service_name, const char* msg)
   }
 
   strcpy(new_msg, msg); 
-  insert_item(i, new_msg, strlen(new_msg)+1); 
+  nbb_insert_item(i, new_msg, strlen(new_msg)+1); 
   kill(services_used[i].pid, SIGUSR1);
 
   printf("** Send '%s' to %s\n", msg, service_name);
 
   do{ 
-    retval = read_item(i, (void**)&recv, &recv_len);
+    retval = nbb_read_item(i, (void**)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
   if(strcmp(recv, NOTIFY_MSG)) {
-    flush_shm(i, recv, recv_len);
+    nbb_flush_shm(i, recv, recv_len);
   }
 
-  printf("** Received '%.*s' from the service\n", recv_len, recv);
+  printf("** Received '%.*s' from the service\n", (int) recv_len, recv);
 
   return 0;
 }
 
-void recv_client_data(int signum)
+void nbb_recv_client_data(int signum)
 {
   int i;
   char* recv;
@@ -260,7 +252,7 @@ void recv_client_data(int signum)
 
   // Since i = 0 is already reserved for nameserver
   for(i = 1;channel_list[i].in_use && i < SERVICE_MAX_CHANNELS;i++) {
-    retval = read_item(i, (void**)&recv, &recv_len);
+    retval = nbb_read_item(i, (void**)&recv, &recv_len);
 
     if(retval == OK) {
       // Notify of new connection on slot i
@@ -278,29 +270,29 @@ void recv_client_data(int signum)
       reply_msg = (char*)calloc(recv_len, sizeof(char));
 
       if(strcmp(recv, NOTIFY_MSG)) {
-        flush_shm(i, recv, recv_len);
+        nbb_flush_shm(i, recv, recv_len);
       }
 
       // Reply message
       //strcpy(reply_msg, "acknowledged the message: ");
       strcat(reply_msg, recv);
-      insert_item(i, reply_msg, recv_len);
+      nbb_insert_item(i, reply_msg, recv_len);
 
       recv_len = 0;
       free(reply_msg);
     }
   }
 
-  signal(SIGUSR1, recv_client_data);
+  signal(SIGUSR1, nbb_recv_client_data);
 }
 
-int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
+int nbb_open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
 {
 	int shmid;
 	unsigned char * shm;
   int free_slot;
 
-  free_slot = free_channel_slot();
+  free_slot = nbb_free_channel_slot();
   if(free_slot == -1) {
     return -1;
   }
@@ -355,7 +347,7 @@ int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
   return free_slot;
 }
 
-int close_channel(int index)
+int nbb_close_channel(int index)
 {
   //TODO: Most probably buggy, needs to be checked some more
 
@@ -373,7 +365,7 @@ int close_channel(int index)
   return 0;
 }
 
-int free_channel_slot()
+int nbb_free_channel_slot()
 {
   int i;
 
@@ -386,20 +378,29 @@ int free_channel_slot()
   return -1;
 }
 
-int read_bytes(int slot, int size, void* buf)
+/* Reads as many bytes up to size as are available
+ * Return value is the number of bytes read.
+ */
+int nbb_read_bytes(int slot, char* buf, int size)
 {
   delay_buffer_t* delay_buffer = &(delay_buffers[slot]);
+  if(size > delay_buffer->len) {
+    size = delay_buffer->len;
+  }
+
+  if(!size) {
+    return 0;
+  }
+
   int new_len = delay_buffer->len - size;
   char* tmp;
 
-  if(!size) {
-    return -1;
-  }
-
+  /*
   if(new_len <= 0) {
     perror("! Not enough bytes\n");
     return -1;
   }
+  */
 
   tmp = (char*)malloc(new_len);
 
@@ -412,25 +413,25 @@ int read_bytes(int slot, int size, void* buf)
 
   channel_list[slot].read_count += size;
 
-  return 0;
+  return size;
 }
 
-int bytes_available(int slot)
+int nbb_bytes_available(int slot)
 {
   return delay_buffers[slot].len;
 }
 
-int bytes_read(int slot)
+int nbb_bytes_read(int slot)
 {
   return channel_list[slot].read_count;
 }
 
-int bytes_written(int slot)
+int nbb_bytes_written(int slot)
 {
   return channel_list[slot].write_count;
 }
 
-void flush_shm(int slot, char* array_to_flush, int size)
+void nbb_flush_shm(int slot, char* array_to_flush, int size)
 {
   delay_buffer_t* buffer = &(delay_buffers[slot]);
   char* tmp = (char*)malloc(sizeof(char) * buffer->len);
@@ -442,10 +443,10 @@ void flush_shm(int slot, char* array_to_flush, int size)
   memcpy(buffer->content + buffer->len, array_to_flush, size);
   buffer->len += size - 1;
 
-  printf("** Intermediate buffer content: %s\n", buffer->content);
+  //printf("** Intermediate buffer content: %s\n", buffer->content);
 }
 
-int insert_item(int channel_id, void* ptr_to_item, size_t size)
+int nbb_insert_item(int channel_id, const void* ptr_to_item, size_t size)
 	//							struct obj** ptr_to_defunct_item)
 {
 	struct buffer *buf = channel_list[channel_id].write;
@@ -519,7 +520,7 @@ int insert_item(int channel_id, void* ptr_to_item, size_t size)
   return OK;
 }
 
-int read_item(int channel_id, void** ptr_to_item, size_t* size)
+int nbb_read_item(int channel_id, void** ptr_to_item, size_t* size)
 {
 	struct buffer *buf = channel_list[channel_id].read;
 	unsigned char *data_buf = channel_list[channel_id].read_data;
@@ -542,8 +543,8 @@ int read_item(int channel_id, void** ptr_to_item, size_t* size)
   memcpy(*ptr_to_item, data_buf+tmp->offset, tmp->size);
 	*size = tmp->size;
 
-  //printf("read_item ret pointer %x\n", ref_to_item);
-  //printf("read_item ret pointer %x -> %d\n", ref_to_item, *ref_to_item);
+  //printf("nbb_read_item ret pointer %x\n", ref_to_item);
+  //printf("nbb_read_item ret pointer %x -> %d\n", ref_to_item, *ref_to_item);
   buf->ack_counter = buf->last_ack_counter + 2;
   buf->last_ack_counter = buf->ack_counter;
 
@@ -571,13 +572,13 @@ int read_item(int channel_id, void** ptr_to_item, size_t* size)
 
 
 int read_asynch(struct obj* ptr_to_item) {
-	return read_item(ptr_to_item);
+	return nbb_read_item(ptr_to_item);
 }
 
 int readb(struct obj* ptr_to_item) {
 	int ret;
 	do {
-		ret = read_item(ptr_to_item);
+		ret = nbb_read_item(ptr_to_item);
 	} while(ret != OK);
 	return ret;
 }
@@ -587,7 +588,7 @@ int write_asynch(struct obj* ptr_to_item) {
 	int ret;
 
 	// Try only once, we're non-blocking
-	ret = insert_item(ptr_to_item, &ptr_to_defunct_item);
+	ret = nbb_insert_item(ptr_to_item, &ptr_to_defunct_item);
 
 	// Free defunct pointer if not NULL
   if(ret == OK && ptr_to_defunct_item) {
@@ -603,7 +604,7 @@ int writeb(struct obj* ptr_to_item) {
 
 	// Spin until success
 	do {
-		ret = insert_item(ptr_to_item, &ptr_to_defunct_item);
+		ret = nbb_insert_item(ptr_to_item, &ptr_to_defunct_item);
 	} while(ret != OK);
 
 	// Free defunct pointer if not NULL

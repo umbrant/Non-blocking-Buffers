@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef NBB_H
 #define NBB_H
 
@@ -93,18 +97,25 @@ struct buffer {
 	struct channel_item items[BUFFER_SIZE];
 };
 
+typedef struct delay_buffer
+{
+  char* content;
+  int len;
+  int read_count;
+} delay_buffer_t;
+
 // Initialize the service 
-int init_service(int num_channels, char* name);
+int nbb_init_service(int num_channels, const char* name);
 
 // Client tries to connect to a certain service
-int connect_service(char* service_name);
+int nbb_connect_service(const char* service_name);
 
 // Communicate with the nameserver
-char* nameserver_connect(char* request);
+char* nbb_nameserver_connect(const char* request);
 
 // Open & close channels
-int open_channel(int shm_read_id, int shm_write_id, int is_ipc_create);
-int close_channel(int channel_id);
+int nbb_open_channel(int shm_read_id, int shm_write_id, int is_ipc_create);
+int nbb_close_channel(int channel_id);
 
 // Callback mechanisms for nbb events
 // Hardcode for now. We can generalize the function prototype later.
@@ -112,29 +123,29 @@ typedef void (*cb_new_conn_func)(int slot_id);
 void nbb_set_cb_new_connection(cb_new_conn_func func);
 
 // Sending a message from client to server
-int client_send(const char* service_name, const char* msg);
+int nbb_client_send(const char* service_name, const char* msg);
 
 // Finds a free channel slot
 // Returns the index of the free slot, if it is full, returns -1
-int free_channel_slot();
+int nbb_free_channel_slot();
 
 // Data is available from client, called via interrupt
-void recv_client_data(int signum);
+void nbb_recv_client_data(int signum);
 
 // Flush stuffs in shm to intermediate buffer to allow finer granularity
-void flush_shm(int slot, char* array_to_flush, int size);
+void nbb_flush_shm(int slot, char* array_to_flush, int size);
 
 // Read a specified number of bytes from the shm
-int read_bytes(int slot, int size, void* buf);
+int nbb_read_bytes(int slot, char* buf, int size);
 
 // Simple utility functions that should be self-explanatory
-int bytes_available(int slot);
-int bytes_read(int slot);
-int bytes_written(int slot);
+int nbb_bytes_available(int slot);
+int nbb_bytes_read(int slot);
+int nbb_bytes_written(int slot);
  
 // Insert/read item from the NBB
-int insert_item(int channel_id, void* ptr_to_item, size_t size);
-int read_item(int channel_id, void** ptr_to_item, size_t* size);
+int nbb_insert_item(int channel_id, const void* ptr_to_item, size_t size);
+int nbb_read_item(int channel_id, void** ptr_to_item, size_t* size);
 
 // Copy contents of obj1 to obj2
 //int copy_obj(struct obj *obj1, struct obj *obj2);
@@ -163,3 +174,7 @@ int clean_mem();
 */
 
 #endif // NBB_H
+
+#ifdef __cplusplus
+}
+#endif

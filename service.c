@@ -14,7 +14,7 @@ int main()
   strcpy(service_name, GUI);
   nbb_set_cb_new_connection(on_new_connection);
 
-	if(init_service(NUM_CHANNELS, service_name)) {
+	if(nbb_init_service(NUM_CHANNELS, service_name)) {
 		printf("Error initializing as service, failing!\n");
 		return -1;
 	}

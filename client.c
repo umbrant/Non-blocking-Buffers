@@ -9,7 +9,7 @@ int main()
 
   strcpy(service_name, GUI);
 
-	if(connect_service(service_name) < 0) {
+	if(nbb_connect_service(service_name) < 0) {
 		printf("Error getting channel!\n");
 		return -1;
 	}
@@ -18,9 +18,9 @@ int main()
     printf("Enter message to send to server: ");
     scanf("%s", msg);
 
-    client_send(service_name, msg); 
+    nbb_client_send(service_name, msg); 
 
-    printf("bytes available: %d\n", bytes_available(1)); //hardcoded, xD
+    printf("bytes available: %d\n", nbb_bytes_available(1)); //hardcoded, xD
     printf("How many bytes do you want to read: ");
     scanf("%d", &size);
 
@@ -28,21 +28,21 @@ int main()
       break;
     }
 
-    if(size > bytes_available(1)) {
+    if(size > nbb_bytes_available(1)) {
       continue;
     }
 
     memset(array, '\0', strlen(array));
     array = (char*)realloc(array, sizeof(char) * size);
-    read_bytes(1, size, array);
+    nbb_read_bytes(1, array, size);
 
     printf("read bytes: %s\n", array);
   }
 
   printf("\n********Statistic********\n");
-  printf("bytes_available: %d\n", bytes_available(1));
-  printf("bytes_read: %d\n", bytes_read(1));
-  printf("bytes_written: %d\n", bytes_written(1));
+  printf("bytes_available: %d\n", nbb_bytes_available(1));
+  printf("bytes_read: %d\n", nbb_bytes_read(1));
+  printf("bytes_written: %d\n", nbb_bytes_written(1));
 
   free(array);
   free(msg);

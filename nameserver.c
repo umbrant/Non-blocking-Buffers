@@ -12,7 +12,7 @@ void data_available(int signum)
 	int retval = -1;
   int request_type;
 
-	retval = read_item(CHANNEL_ID, (void**)&recv, &recv_len);
+	retval = nbb_read_item(CHANNEL_ID, (void**)&recv, &recv_len);
  
 printf("nameserver recv: %s\n", recv);
 
@@ -37,7 +37,7 @@ void handle_client(char* arg)
     printf("** Unable to find service: %s\n", arg);
     strcpy(msg, UNKNOWN_SERVICE);
 
-    insert_item(CHANNEL_ID, msg, strlen(msg));
+    nbb_insert_item(CHANNEL_ID, msg, strlen(msg));
     free(msg);
     return;
   }
@@ -49,7 +49,7 @@ void handle_client(char* arg)
     printf("** Service has no channel free\n");
     strcpy(msg, SERVICE_BUSY);
 
-    insert_item(CHANNEL_ID, msg, strlen(msg));
+    nbb_insert_item(CHANNEL_ID, msg, strlen(msg));
     free(msg);
     return;
   }
@@ -63,7 +63,7 @@ void handle_client(char* arg)
   strcat(msg, " "); 
   strcat(msg, tmp);
 
-  insert_item(CHANNEL_ID, msg, strlen(msg));
+  nbb_insert_item(CHANNEL_ID, msg, strlen(msg));
   free(msg);
   return;
 }
@@ -109,7 +109,7 @@ void handle_service(char* arg)
     }
   }
 
-  insert_item(CHANNEL_ID, msg, strlen(msg));
+  nbb_insert_item(CHANNEL_ID, msg, strlen(msg));
   free(msg); 
   return;
 }
