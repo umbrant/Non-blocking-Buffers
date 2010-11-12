@@ -58,7 +58,7 @@ int init_nameserver()
   }
 
   if(nbb_open_channel(NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
-    perror("! Unable to open chanel\n");
+    perror("! Unable to open channel\n");
     return -1;
   }
 
@@ -76,9 +76,17 @@ int nbb_init_service(int num_channels, const char* name)
   char* recv;
   char pid[PID_MAX_STRLEN + 1];
 
+  if(num_channels < 0) {
+    printf("! nbb_init_service(): Invalid channel number: %d\n", num_channels);
+  }
+
+  if(!name) {
+    perror("! nbb_init_service(): Null name\n");
+  }
+
   sem_id = sem_open(SEM_KEY, 0);
   if(sem_id == SEM_FAILED) {
-    perror("! Unable to obtain semaphore\n");
+    perror("! nbb_init_service(): Unable to obtain semaphore\n");
     return -1;
   }
 
@@ -99,7 +107,7 @@ int nbb_init_service(int num_channels, const char* name)
   recv = nbb_nameserver_connect(request);
 
   if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
-    printf("! Reserving channel unsuccessful\n");
+    printf("! nbb_init_service(): Reserving channel unsuccessful\n");
   
     sem_post(sem_id);
     return -1;
@@ -112,11 +120,11 @@ int nbb_init_service(int num_channels, const char* name)
     char* tmp;
 
     tmp = strtok(recv, " ");
-    for(i = 0;i < num_channels;i++) { 
+    for(i = 1;i < num_channels;i++) { 
       channel = atoi(tmp);
       if(nbb_open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
         //TODO: service_exit();
-        printf("! Failed to open the %d-th channel\n", i);
+        printf("! nbb_init_service(): Failed to open the %d-th channel\n", i);
         sem_post(sem_id);
         return -1;
       }
@@ -139,9 +147,13 @@ int nbb_connect_service(const char* service_name)
   int ret_code;
   char* recv;
 
+  if(!service_name) {
+    perror("! nbb_connect_service(): Null name\n");
+  }
+
   sem_id = sem_open(SEM_KEY, 0);
   if(sem_id == SEM_FAILED) {
-    perror("! Unable to obtain semaphore\n");
+    perror("! nbb_connect_service(): Unable to obtain semaphore\n");
     return -1;
   }
   // BEGIN CRITICAL SECTION
@@ -158,12 +170,12 @@ int nbb_connect_service(const char* service_name)
   }
 
   else if(!strcmp(recv, UNKNOWN_SERVICE)) {
-    printf("** Invalid service\n");
+    printf("! nbb_connect_service(): Invalid service: %s\n", service_name);
     ret_code = -1;
   }
  
   else if(!strcmp(recv, SERVICE_BUSY)) {
-    printf("** Service too busy, not enough channel\n"); 
+    printf("! nbb_connect_service(): Service %s too busy, not enough channel\n", service_name); 
     ret_code = -1;
   }
 
@@ -189,7 +201,7 @@ int nbb_connect_service(const char* service_name)
 
     // Notify service of the new connection by sending a dummy message
     if (nbb_client_send(service_name, NEW_CONN_NOTIFY_MSG)) {
-      printf("** Can't notify service '%s' of new connection\n", service_name);
+      printf("! nbb_connect_service(): Can't notify service '%s' of new connection\n", service_name);
       ret_code = -1;
     }
     
@@ -216,13 +228,17 @@ int nbb_client_send(const char* service_name, const char* msg)
 {
   int i;
   size_t msg_len = strlen(msg);
-  char* new_msg = (char*)calloc(msg_len + 1, sizeof(char));
+  char* new_msg;
   char* recv;
   size_t recv_len;
   int retval;
 
+  if(!service_name || !msg) {
+    perror("! nbb_client_send(): missing service_name or msg\n");
+  }
+
   // Since i = 0 is already reserved for nameserver
-  for(i = 1;i < SERVICE_MAX_CHANNELS;i++) {
+  for(i = 1; i < SERVICE_MAX_CHANNELS;i++) {
     if(channel_list[i].in_use && 
        !strcmp(service_name, services_used[i].service_name)) {
       break;
@@ -230,9 +246,11 @@ int nbb_client_send(const char* service_name, const char* msg)
   }
 
   if(i == SERVICE_MAX_CHANNELS) {
-    perror("! Service not found\n");
+    perror("! nbb_client_send(): Service not found\n");
     return -1;
   }
+
+  new_msg = (char*)calloc(msg_len + 1, sizeof(char));
 
   strcpy(new_msg, msg); 
   nbb_insert_item(i, new_msg, msg_len+1); 
@@ -310,6 +328,7 @@ int nbb_open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
 
   free_slot = nbb_free_channel_slot();
   if(free_slot == -1) {
+	perror("! nbb_open_channel(): no free_slot\n");
     return -1;
   }
 
@@ -400,6 +419,12 @@ int nbb_free_channel_slot()
 int nbb_read_bytes(int slot, char* buf, int size)
 {
   delay_buffer_t* delay_buffer = &(delay_buffers[slot]);
+
+  if(slot < 0) {
+    printf("! nbb_read_bytes(): invalid slot %d\n", slot);
+    return -1;
+  }
+
   if(size > delay_buffer->len) {
     size = delay_buffer->len;
   }
@@ -472,6 +497,16 @@ int nbb_insert_item(int channel_id, const void* ptr_to_item, size_t size)
 	unsigned char *data_buf = channel_list[channel_id].write_data;
 
   unsigned short temp_ac = buf->ack_counter;
+
+  if(channel_id < 0) {
+    printf("! nbb_insert_item(): invalid channel id %d\n", channel_id);
+    return -1;
+  }
+
+  if(size < 0) {
+    printf("! nbb_insert_item(): invalid item size %lu\n", size);
+    return -1;
+  }
  
   if (buf->last_update_counter - temp_ac == 2 * BUFFER_SIZE) {
   	//ptr_to_defunct_item = NULL;
@@ -544,6 +579,16 @@ int nbb_read_item(int channel_id, void** ptr_to_item, size_t* size)
 	struct buffer *buf = channel_list[channel_id].read;
 	unsigned char *data_buf = channel_list[channel_id].read_data;
   unsigned short temp_uc = buf->update_counter;
+
+  if(channel_id < 0) {
+    printf("! nbb_read_item(): invalid channel_id %d\n", channel_id);
+    return -1;
+  }
+
+  if(size < 0) {
+    printf("! nbb_read_item(): invalid size %lu\n", *size);
+    return -1;
+  }
 
   if (temp_uc == buf->last_ack_counter) {
     return BUFFER_EMPTY; 

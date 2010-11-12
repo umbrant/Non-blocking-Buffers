@@ -1,6 +1,6 @@
 #include "nbb.h"
 
-#define NUM_CHANNELS 5
+#define NUM_CHANNELS 10
 
 static void on_new_connection(int slot_id)
 {

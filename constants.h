@@ -20,7 +20,7 @@ enum {
   OPEN,
 };
 
-static const char NAMESERVER_PID_FILE[] = "nameserver_pid";
+static const char NAMESERVER_PID_FILE[] = "/tmp/nameserver_pid";
 static const char NAMESERVER_CHANNEL_FULL[] = "Nameserver Full";
 static const char UNKNOWN_SERVICE[] = "Unknown Service";
 static const char SERVICE_BUSY[] = "Service Too Busy";
