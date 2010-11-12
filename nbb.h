@@ -119,8 +119,14 @@ int nbb_close_channel(int channel_id);
 
 // Callback mechanisms for nbb events
 // Hardcode for now. We can generalize the function prototype later.
+
+// New connection event
 typedef void (*cb_new_conn_func)(int slot_id);
 void nbb_set_cb_new_connection(cb_new_conn_func func);
+
+// New data event (available to read)
+typedef void (*cb_new_data_func)(int slot_id);
+void nbb_set_cb_new_data(cb_new_data_func func);
 
 // Sending a message from client to server
 int nbb_client_send(const char* service_name, const char* msg);

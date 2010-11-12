@@ -12,10 +12,12 @@ sem_t *sem_id;   // POSIX semaphore
 
 // When a client nbb_connect_service()s to a service, this message is
 // sent to the service to note the new incoming connection.
-#define NOTIFY_MSG "**Q_Q**"
-static const char *notify_msg = NOTIFY_MSG;
-static const int notify_msg_len = sizeof(NOTIFY_MSG) - 1;
-static cb_new_conn_func new_connection_callback = NULL;
+#define NEW_CONN_NOTIFY_MSG "**Q_Q**"
+#define NEW_CONN_NOTIFY_MSG_LEN (sizeof(NEW_CONN_NOTIFY_MSG) - 1)
+
+// Callback functions
+static cb_new_conn_func callback_new_connection = NULL;
+static cb_new_data_func callback_new_data = NULL;
 
 char* nbb_nameserver_connect(const char* request)
 {
@@ -186,7 +188,7 @@ int nbb_connect_service(const char* service_name)
  
 
     // Notify service of the new connection by sending a dummy message
-    if (nbb_client_send(service_name, notify_msg)) {
+    if (nbb_client_send(service_name, NEW_CONN_NOTIFY_MSG)) {
       printf("** Can't notify service '%s' of new connection\n", service_name);
       ret_code = -1;
     }
@@ -202,7 +204,12 @@ int nbb_connect_service(const char* service_name)
 
 void nbb_set_cb_new_connection(cb_new_conn_func func)
 {
-    new_connection_callback = func;
+    callback_new_connection = func;
+}
+
+void nbb_set_cb_new_data(cb_new_data_func func)
+{
+    callback_new_data = func;
 }
 
 int nbb_client_send(const char* service_name, const char* msg)
@@ -237,7 +244,7 @@ int nbb_client_send(const char* service_name, const char* msg)
     retval = nbb_read_item(i, (void**)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
-  if(strcmp(recv, NOTIFY_MSG)) {
+  if(strcmp(recv, NEW_CONN_NOTIFY_MSG)) {
     nbb_flush_shm(i, recv, recv_len);
   }
 
@@ -260,12 +267,17 @@ void nbb_recv_client_data(int signum)
 
     if(retval == OK) {
       // Notify of new connection on slot i
-      if (new_connection_callback != NULL) {
+      if (callback_new_connection != NULL) {
         // Received data includes null byte
-        if (recv_len == notify_msg_len + 1 &&
-            memcmp(recv, notify_msg, notify_msg_len + 1) == 0) {
-            new_connection_callback(i);
+        if (recv_len == NEW_CONN_NOTIFY_MSG_LEN + 1 &&
+            memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN + 1) == 0) {
+            callback_new_connection(i);
         }
+      }
+
+      // Notify event of new available data
+      if (callback_new_data != NULL) {
+        callback_new_data(i);
       }
 
       printf("** Received '%.*s' from shm id %d\n",
@@ -273,7 +285,7 @@ void nbb_recv_client_data(int signum)
 
       reply_msg = (char*)calloc(recv_len, sizeof(char));
 
-      if(strcmp(recv, NOTIFY_MSG)) {
+      if(strcmp(recv, NEW_CONN_NOTIFY_MSG)) {
         nbb_flush_shm(i, recv, recv_len);
       }
 
@@ -520,7 +532,7 @@ int nbb_insert_item(int channel_id, const void* ptr_to_item, size_t size)
 
   buf->last_update_counter = buf->update_counter;
  
-  if(memcmp(NOTIFY_MSG, ptr_to_item, sizeof(NOTIFY_MSG))) {
+  if(memcmp(NEW_CONN_NOTIFY_MSG, ptr_to_item, sizeof(NEW_CONN_NOTIFY_MSG))) {
     channel_list[channel_id].write_count += (size - 1); // Excluding '\0'
   }
 
