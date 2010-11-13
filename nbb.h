@@ -6,7 +6,9 @@ extern "C" {
 #define NBB_H
 
 // Necessary for sys/ipc.h
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
