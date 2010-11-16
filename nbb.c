@@ -73,8 +73,7 @@ int init_nameserver()
 
 int nbb_init_service(int num_channels, const char* name) 
 {
-  printf("** nbb_init_service\n");
-  char request[100];
+  char request[MAX_MSG_LEN] = {};
   char num_channel[2]; // TODO: Make it constants?
   char pid[PID_MAX_STRLEN + 1];
 
@@ -99,20 +98,15 @@ int nbb_init_service(int num_channels, const char* name)
   sprintf(pid, "%d", getpid());
 
   strcpy(request, SERVICE);
-
   strcat(request, " ");
   strcat(request, name);
-
   strcat(request, " ");
-  printf("** nbb_init_service almost done\n");
-  printf("request: %s, len: %zu\n", request, strlen(request));
   strcat(request, num_channel); 
-
-  printf("** nbb_init_service almost done\n");
   strcat(request, " ");
   strcat(request, pid);
 
   printf("** nbb_init_service almost done\n");
+  printf("request: %s, len: %zu\n", request, strlen(request));
 
   char* recv;
   int recv_len;
@@ -237,12 +231,18 @@ int nbb_connect_service(const char* service_name)
 	return ret_code;
 }
 
-void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func)
+void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg)
 {
   int i;
-  for(i = 0;i < PROCESS_MAX_SERVICES;i++) {
+  for(i = 0;i < SERVICE_MAX_CHANNELS;i++) {
+    printf("owner: %s\n", owner);
+    if(!channel_list[i].in_use) {
+      continue;
+    }
+
     if(!strcmp(owner, channel_list[i].owner)) {
       channel_list[i].new_conn = func;
+      channel_list[i].arg = arg;
     }
   }
 }
@@ -250,7 +250,11 @@ void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func)
 void nbb_set_cb_new_data(char* owner, cb_new_data_func func)
 {
   int i;
-  for(i = 0;i < PROCESS_MAX_SERVICES;i++) {
+  for(i = 0;i < SERVICE_MAX_CHANNELS;i++) {
+    if(!channel_list[i].in_use) {
+      continue;
+    }
+
     if(!strcmp(owner, channel_list[i].owner)) {
       channel_list[i].new_data = func;
     }
@@ -355,7 +359,6 @@ void nbb_recv_client_data(int signum)
 
 int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int is_ipc_create)
 {
-printf("** nbb_open_channel\n");
 	int shmid;
 	unsigned char * shm;
   int free_slot;
@@ -417,7 +420,6 @@ printf("** nbb_open_channel\n");
 
   delay_buffers[free_slot].len = 0;
 
-printf("** nbb_open_channel done\n");
   return free_slot;
 }
 

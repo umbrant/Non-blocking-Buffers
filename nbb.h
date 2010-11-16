@@ -58,8 +58,8 @@ enum {
 // Hardcode for now. We can generalize the function prototype later.
 
 // New connection event
-typedef void (*cb_new_conn_func)(int slot_id, void *arg);
-void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func);
+typedef void (*cb_new_conn_func)(int slot_id);
+void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg);
 
 // New data event (available to read)
 typedef void (*cb_new_data_func)(int slot_id);
@@ -85,6 +85,7 @@ struct channel {
   char* owner;
   cb_new_conn_func new_conn;
   cb_new_data_func new_data;
+  void* arg;
 
   int in_use;
 };
