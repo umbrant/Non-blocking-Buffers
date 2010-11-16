@@ -60,7 +60,7 @@ int init_nameserver()
   }
 
   if(nbb_open_channel(NULL, NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
-    perror("! Unable to open channel\n");
+    printf("! Unable to open channel\n");
     return -1;
   }
 
@@ -82,7 +82,7 @@ int nbb_init_service(int num_channels, const char* name)
   }
 
   if(!name) {
-    perror("! nbb_init_service(): Null name\n");
+    printf("! nbb_init_service(): Null name\n");
   }
 
   sem_id = sem_open(SEM_KEY, 0);
@@ -160,7 +160,7 @@ int nbb_connect_service(const char* service_name)
   int ret_code;
 
   if(!service_name) {
-    perror("! nbb_connect_service(): Null name\n");
+    printf("! nbb_connect_service(): Null name\n");
   }
 
   sem_id = sem_open(SEM_KEY, 0);
@@ -217,7 +217,7 @@ int nbb_connect_service(const char* service_name)
  
 
     // Notify service of the new connection by sending a dummy message
-    if (nbb_client_send(service_name, NEW_CONN_NOTIFY_MSG)) {
+    if (nbb_client_send(service_name, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN)) {
       printf("! nbb_connect_service(): Can't notify service '%s' of new connection\n", service_name);
       ret_code = -1;
     }
@@ -260,17 +260,21 @@ void nbb_set_cb_new_data(char* owner, cb_new_data_func func)
   }
 }
 
-int nbb_client_send(const char* service_name, const char* msg)
+int nbb_client_send(const char* service_name, const char* msg, size_t msg_len)
 {
   int i;
-  size_t msg_len = strlen(msg);
-  char* new_msg;
   char* recv;
   size_t recv_len;
   int retval;
 
   if(!service_name || !msg) {
-    perror("! nbb_client_send(): missing service_name or msg\n");
+    printf("! nbb_client_send(): missing service_name or msg\n");
+    return -1;
+  }
+
+  if (msg_len == 0) {
+    printf("! nbb_client_send(): nothing to send (0 length passed in)\n");
+    return 0;
   }
 
   // Since i = 0 is already reserved for nameserver
@@ -282,17 +286,14 @@ int nbb_client_send(const char* service_name, const char* msg)
   }
 
   if(i == SERVICE_MAX_CHANNELS) {
-    perror("! nbb_client_send(): Service not found\n");
+    printf("! nbb_client_send(): Service not found\n");
     return -1;
   }
 
-  new_msg = (char*)calloc(msg_len + 1, sizeof(char));
-
-  strcpy(new_msg, msg); 
-  nbb_insert_item(i, new_msg, msg_len+1); 
+  nbb_insert_item(i, msg, msg_len); 
   kill(services_used[i].pid, SIGUSR1);
 
-  printf("** Send '%s' to %s\n", msg, service_name);
+  printf("** Send '%.*s' to %s\n", (int) msg_len, msg, service_name);
 
   do{ 
     retval = nbb_read_item(i, (void**)&recv, &recv_len);
@@ -326,7 +327,7 @@ void nbb_recv_client_data(int signum)
         // Received data includes null byte
         if (recv_len == NEW_CONN_NOTIFY_MSG_LEN + 1 &&
             memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN + 1) == 0) {
-            channel_list[i].new_conn(i);
+            channel_list[i].new_conn(i, channel_list[i].arg);
         }
       }
 
@@ -367,7 +368,7 @@ int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int i
 
   free_slot = nbb_free_channel_slot();
   if(free_slot == -1) {
-	  perror("! nbb_open_channel(): no free_slot\n");
+	printf("! nbb_open_channel(): no free_slot\n");
     return -1;
   }
 

@@ -58,7 +58,7 @@ enum {
 // Hardcode for now. We can generalize the function prototype later.
 
 // New connection event
-typedef void (*cb_new_conn_func)(int slot_id);
+typedef void (*cb_new_conn_func)(int slot_id, void *arg);
 void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg);
 
 // New data event (available to read)
@@ -135,7 +135,7 @@ int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int i
 int nbb_close_channel(int channel_id);
 
 // Sending a message from client to server
-int nbb_client_send(const char* service_name, const char* msg);
+int nbb_client_send(const char* service_name, const char* msg, size_t msg_len);
 
 // Finds a free channel slot
 // Returns the index of the free slot, if it is full, returns -1
