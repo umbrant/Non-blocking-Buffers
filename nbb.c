@@ -24,7 +24,7 @@ char* nbb_nameserver_connect(const char* request)
   size_t recv_len;
 
   // Should be reversed since what's written by service is read by nameserver
-  if(nbb_open_channel((char*)NULL, NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
+  if(nbb_open_channel(NULL, NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
     return NULL;
   }
 
@@ -67,7 +67,8 @@ int init_nameserver()
 
 int nbb_init_service(int num_channels, const char* name) 
 {
-  char request[MAX_MSG_LEN];
+  printf("** nbb_init_service\n");
+  char request[100];
   char num_channel[2]; // TODO: Make it constants?
   char* recv;
   char pid[PID_MAX_STRLEN + 1];
@@ -93,13 +94,20 @@ int nbb_init_service(int num_channels, const char* name)
   sprintf(pid, "%d", getpid());
 
   strcpy(request, SERVICE);
+
   strcat(request, " ");
   strcat(request, name);
+
   strcat(request, " ");
+  printf("** nbb_init_service almost done\n");
+  printf("request: %s, len: %d\n", request, strlen(request));
   strcat(request, num_channel); 
+
+  printf("** nbb_init_service almost done\n");
   strcat(request, " ");
   strcat(request, pid);
 
+  printf("** nbb_init_service almost done\n");
   recv = nbb_nameserver_connect(request);
 
   if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
@@ -328,6 +336,7 @@ void nbb_recv_client_data(int signum)
 
 int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int is_ipc_create)
 {
+printf("** nbb_open_channel\n");
 	int shmid;
 	unsigned char * shm;
   int free_slot;
@@ -382,10 +391,14 @@ int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int i
   channel_list[free_slot].write_count = 0;
 
   channel_list[free_slot].in_use = 1;
-  strcpy(channel_list[free_slot].owner, owner);
+  if(owner) {
+    channel_list[free_slot].owner = (char*)calloc(strlen(owner), sizeof(char));
+    strcpy(channel_list[free_slot].owner, owner);
+  }
 
   delay_buffers[free_slot].len = 0;
 
+printf("** nbb_open_channel done\n");
   return free_slot;
 }
 
