@@ -15,10 +15,6 @@ sem_t *sem_id;   // POSIX semaphore
 #define NEW_CONN_NOTIFY_MSG "**Q_Q**"
 #define NEW_CONN_NOTIFY_MSG_LEN (sizeof(NEW_CONN_NOTIFY_MSG) - 1)
 
-// Callback functions
-static cb_new_conn_func callback_new_connection = NULL;
-static cb_new_data_func callback_new_data = NULL;
-
 char* nbb_nameserver_connect(const char* request)
 {
   int nameserver_pid = 0;
@@ -28,7 +24,7 @@ char* nbb_nameserver_connect(const char* request)
   size_t recv_len;
 
   // Should be reversed since what's written by service is read by nameserver
-  if(nbb_open_channel(NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
+  if(nbb_open_channel((char*)NULL, NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
     return NULL;
   }
 
@@ -57,7 +53,7 @@ int init_nameserver()
     return -1;
   }
 
-  if(nbb_open_channel(NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
+  if(nbb_open_channel(NULL, NAMESERVER_READ, NAMESERVER_WRITE, IPC_CREAT)) {
     perror("! Unable to open channel\n");
     return -1;
   }
@@ -122,7 +118,7 @@ int nbb_init_service(int num_channels, const char* name)
     tmp = strtok(recv, " ");
     for(i = 1;i < num_channels;i++) { 
       channel = atoi(tmp);
-      if(nbb_open_channel(channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
+      if(nbb_open_channel(name, channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
         //TODO: service_exit();
         printf("! nbb_init_service(): Failed to open the %d-th channel\n", i);
         sem_post(sem_id);
@@ -190,7 +186,7 @@ int nbb_connect_service(const char* service_name)
     tmp = strtok(NULL, " ");
     service_pid = atoi(tmp);
 
-    slot = nbb_open_channel(channel_id + READ_WRITE_CONV, channel_id, !IPC_CREAT);
+    slot = nbb_open_channel(NULL, channel_id + READ_WRITE_CONV, channel_id, !IPC_CREAT);
 
     services_used[slot].service_name = (char*)malloc(sizeof(char)*MAX_MSG_LEN);
     strcpy(services_used[slot].service_name, service_name);
@@ -214,14 +210,24 @@ int nbb_connect_service(const char* service_name)
 	return ret_code;
 }
 
-void nbb_set_cb_new_connection(cb_new_conn_func func)
+void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func)
 {
-    callback_new_connection = func;
+  int i;
+  for(i = 0;i < PROCESS_MAX_SERVICES;i++) {
+    if(!strcmp(owner, channel_list[i].owner)) {
+      channel_list[i].new_conn = func;
+    }
+  }
 }
 
-void nbb_set_cb_new_data(cb_new_data_func func)
+void nbb_set_cb_new_data(char* owner, cb_new_data_func func)
 {
-    callback_new_data = func;
+  int i;
+  for(i = 0;i < PROCESS_MAX_SERVICES;i++) {
+    if(!strcmp(owner, channel_list[i].owner)) {
+      channel_list[i].new_data = func;
+    }
+  }
 }
 
 int nbb_client_send(const char* service_name, const char* msg)
@@ -285,17 +291,17 @@ void nbb_recv_client_data(int signum)
 
     if(retval == OK) {
       // Notify of new connection on slot i
-      if (callback_new_connection != NULL) {
+      if (channel_list[i].new_conn != NULL) {
         // Received data includes null byte
         if (recv_len == NEW_CONN_NOTIFY_MSG_LEN + 1 &&
             memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN + 1) == 0) {
-            callback_new_connection(i);
+            channel_list[i].new_conn(i);
         }
       }
 
       // Notify event of new available data
-      if (callback_new_data != NULL) {
-        callback_new_data(i);
+      if (channel_list[i].new_data != NULL) {
+        channel_list[i].new_data(i);
       }
 
       printf("** Received '%.*s' from shm id %d\n",
@@ -320,7 +326,7 @@ void nbb_recv_client_data(int signum)
   signal(SIGUSR1, nbb_recv_client_data);
 }
 
-int nbb_open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
+int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int is_ipc_create)
 {
 	int shmid;
 	unsigned char * shm;
@@ -376,6 +382,7 @@ int nbb_open_channel(int shm_read_id, int shm_write_id, int is_ipc_create)
   channel_list[free_slot].write_count = 0;
 
   channel_list[free_slot].in_use = 1;
+  strcpy(channel_list[free_slot].owner, owner);
 
   delay_buffers[free_slot].len = 0;
 
