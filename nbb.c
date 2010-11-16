@@ -324,8 +324,8 @@ void nbb_recv_client_data(int signum)
       // Notify of new connection on slot i
       if (channel_list[i].new_conn != NULL) {
         // Received data includes null byte
-        if (recv_len == NEW_CONN_NOTIFY_MSG_LEN + 1 &&
-            memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN + 1) == 0) {
+        if (recv_len == NEW_CONN_NOTIFY_MSG_LEN &&
+            memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN) == 0) {
             channel_list[i].new_conn(i, channel_list[i].arg);
         }
       }
