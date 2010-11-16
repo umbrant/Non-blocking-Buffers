@@ -307,6 +307,7 @@ int nbb_client_send(const char* service_name, const char* msg)
   return 0;
 }
 
+/* Called when the service gets new client data */
 void nbb_recv_client_data(int signum)
 {
   int i;
@@ -337,20 +338,22 @@ void nbb_recv_client_data(int signum)
       printf("** Received '%.*s' from shm id %d\n",
              (int) recv_len, recv, channel_list[i].read_id);
 
-      reply_msg = (char*)calloc(recv_len, sizeof(char));
-
-      if(strcmp(recv, NEW_CONN_NOTIFY_MSG)) {
+      if(memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN+1)) {
         nbb_flush_shm(i, recv, recv_len);
       }
 
+      // XXX: This is for debugging. Remove before production.
       // Reply message
       //strcpy(reply_msg, "acknowledged the message: ");
-      strcat(reply_msg, recv);
+      reply_msg = (char*)calloc(recv_len, sizeof(char));
+      memcpy(reply_msg, recv, recv_len);
       nbb_insert_item(i, reply_msg, recv_len);
 
       recv_len = 0;
+      free(recv);
       free(reply_msg);
     }
+
   }
 
   signal(SIGUSR1, nbb_recv_client_data);
