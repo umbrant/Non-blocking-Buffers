@@ -2,9 +2,9 @@
 #define CONSTANTS_H
 
 // TODO: Set dynamically
-#define SERVICE_MAX_CHANNELS 10 // Total # of channels / service
-#define PROCESS_MAX_SERVICES 10 // Total # of services / process
-#define MAX_MSG_LEN 100 
+#define SERVICE_MAX_CHANNELS 15 // Total # of channels / service
+#define PROCESS_MAX_SERVICES 50 // Total # of services / process
+#define MAX_MSG_LEN 50 
 #define READ_WRITE_CONV 1000 // Read id always differ by 1000 from write id 
 #define SEM_KEY "/1337" // POSIX semaphore identifier to be used by everyone
 

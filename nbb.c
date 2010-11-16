@@ -105,7 +105,6 @@ int nbb_init_service(int num_channels, const char* name)
   strcat(request, " ");
   strcat(request, pid);
 
-  printf("** nbb_init_service almost done\n");
   printf("request: %s, len: %zu\n", request, strlen(request));
 
   char* recv;
@@ -362,7 +361,13 @@ int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int i
 	unsigned char * shm;
   int free_slot;
 
-  free_slot = nbb_free_channel_slot();
+  if(shm_read_id == NAMESERVER_WRITE && shm_write_id == NAMESERVER_READ) {
+    free_slot = 0;
+  }
+  else {
+    free_slot = nbb_free_channel_slot();
+  }
+
   if(free_slot == -1) {
 	  perror("! nbb_open_channel(): no free_slot\n");
     return -1;
