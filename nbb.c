@@ -126,6 +126,7 @@ int nbb_init_service(int num_channels, const char* name)
         //TODO: service_exit();
         printf("! nbb_init_service(): Failed to open the %d-th channel\n", i);
         sem_post(sem_id);
+        free(recv);
         return -1;
       }
       tmp = strtok(NULL, " ");
@@ -134,6 +135,7 @@ int nbb_init_service(int num_channels, const char* name)
     signal(SIGUSR1, nbb_recv_client_data);
 
     sem_post(sem_id);
+    free(recv);
     return 0;
   }
   // END CRITICAL SECTION
