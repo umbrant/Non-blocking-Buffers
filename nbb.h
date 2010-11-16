@@ -127,7 +127,7 @@ int nbb_init_service(int num_channels, const char* name);
 int nbb_connect_service(const char* service_name);
 
 // Communicate with the nameserver
-char* nbb_nameserver_connect(const char* request);
+int nbb_nameserver_connect(const char* request, char** ret, int* ret_len);
 
 // Open & close channels
 int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int is_ipc_create);

@@ -15,7 +15,7 @@ sem_t *sem_id;   // POSIX semaphore
 #define NEW_CONN_NOTIFY_MSG "**Q_Q**"
 #define NEW_CONN_NOTIFY_MSG_LEN (sizeof(NEW_CONN_NOTIFY_MSG) - 1)
 
-char* nbb_nameserver_connect(const char* request)
+int nbb_nameserver_connect(const char* request, char** ret, int* ret_len)
 {
   int nameserver_pid = 0;
   FILE* pFile;
@@ -25,7 +25,7 @@ char* nbb_nameserver_connect(const char* request)
 
   // Should be reversed since what's written by service is read by nameserver
   if(nbb_open_channel(NULL, NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
-    return NULL;
+    return -1;
   }
 
   pFile = fopen(NAMESERVER_PID_FILE, "r+"); 
@@ -35,11 +35,17 @@ char* nbb_nameserver_connect(const char* request)
   nbb_insert_item(0, request, strlen(request));
   kill(nameserver_pid, SIGUSR1);
 
+  // Poll until we get something
   do{ 
     retval = nbb_read_item(0, (void**)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
-  return recv;
+  // Set return values
+  *ret = recv;
+  *ret_len = recv_len;
+
+  // No errors, we're happy
+  return 0;
 }
 
 int init_nameserver()
@@ -70,7 +76,6 @@ int nbb_init_service(int num_channels, const char* name)
   printf("** nbb_init_service\n");
   char request[100];
   char num_channel[2]; // TODO: Make it constants?
-  char* recv;
   char pid[PID_MAX_STRLEN + 1];
 
   if(num_channels < 0) {
@@ -100,7 +105,7 @@ int nbb_init_service(int num_channels, const char* name)
 
   strcat(request, " ");
   printf("** nbb_init_service almost done\n");
-  printf("request: %s, len: %d\n", request, strlen(request));
+  printf("request: %s, len: %zu\n", request, strlen(request));
   strcat(request, num_channel); 
 
   printf("** nbb_init_service almost done\n");
@@ -108,7 +113,15 @@ int nbb_init_service(int num_channels, const char* name)
   strcat(request, pid);
 
   printf("** nbb_init_service almost done\n");
-  recv = nbb_nameserver_connect(request);
+
+  char* recv;
+  int recv_len;
+  
+  if(nbb_nameserver_connect(request, &recv, &recv_len)) {
+    printf("! nbb_init_service(): Could not connect to nameserver\n");
+    sem_post(sem_id);
+    return -1;
+  }
 
   if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
     printf("! nbb_init_service(): Reserving channel unsuccessful\n");
@@ -151,7 +164,6 @@ int nbb_connect_service(const char* service_name)
 {
   char request[MAX_MSG_LEN];
   int ret_code;
-  char* recv;
 
   if(!service_name) {
     perror("! nbb_connect_service(): Null name\n");
@@ -169,7 +181,12 @@ int nbb_connect_service(const char* service_name)
   strcat(request, " ");
   strcat(request, service_name);
 
-  recv = nbb_nameserver_connect(request);
+  char* recv;
+  int recv_len;
+  if(nbb_nameserver_connect(request, &recv, &recv_len)) {
+    printf("! nbb_connect_service(): Could not connect to nameserver!\n");
+    return -1;
+  } 
 
   if(!recv) {
     ret_code = -1;
