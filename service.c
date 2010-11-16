@@ -12,7 +12,7 @@ int main()
   char* service_name = (char*)malloc(sizeof(char)*50);
 
   strcpy(service_name, GUI);
-  nbb_set_cb_new_connection(on_new_connection);
+  nbb_set_cb_new_connection(service_name, on_new_connection);
 
 	if(nbb_init_service(NUM_CHANNELS, service_name)) {
 		printf("Error initializing as service, failing!\n");
