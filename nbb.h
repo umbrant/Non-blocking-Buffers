@@ -58,7 +58,7 @@ enum {
 // Hardcode for now. We can generalize the function prototype later.
 
 // New connection event
-typedef void (*cb_new_conn_func)(int slot_id);
+typedef void (*cb_new_conn_func)(int slot_id, void *arg);
 void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func);
 
 // New data event (available to read)
