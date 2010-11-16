@@ -131,7 +131,7 @@ int nbb_init_service(int num_channels, const char* name)
     char* tmp;
 
     tmp = strtok(recv, " ");
-    for(i = 1;i < num_channels;i++) { 
+    for(i = 1;i <= num_channels;i++) { 
       channel = atoi(tmp);
       if(nbb_open_channel(name, channel, channel + READ_WRITE_CONV, IPC_CREAT) == -1) {
         //TODO: service_exit();
@@ -234,13 +234,12 @@ int nbb_connect_service(const char* service_name)
 void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg)
 {
   int i;
-  for(i = 0;i < SERVICE_MAX_CHANNELS;i++) {
-    printf("owner: %s\n", owner);
+  for(i = 1;i < SERVICE_MAX_CHANNELS;i++) {
     if(!channel_list[i].in_use) {
       continue;
     }
 
-    if(!strcmp(owner, channel_list[i].owner)) {
+    if(channel_list[i].owner && !strcmp(owner, channel_list[i].owner)) {
       channel_list[i].new_conn = func;
       channel_list[i].arg = arg;
     }
@@ -250,12 +249,12 @@ void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg)
 void nbb_set_cb_new_data(char* owner, cb_new_data_func func)
 {
   int i;
-  for(i = 0;i < SERVICE_MAX_CHANNELS;i++) {
+  for(i = 1;i < SERVICE_MAX_CHANNELS;i++) {
     if(!channel_list[i].in_use) {
       continue;
     }
 
-    if(!strcmp(owner, channel_list[i].owner)) {
+    if(channel_list[i].owner && !strcmp(owner, channel_list[i].owner)) {
       channel_list[i].new_data = func;
     }
   }
@@ -414,6 +413,7 @@ int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int i
   channel_list[free_slot].write_count = 0;
 
   channel_list[free_slot].in_use = 1;
+
   if(owner) {
     channel_list[free_slot].owner = (char*)calloc(strlen(owner), sizeof(char));
     strcpy(channel_list[free_slot].owner, owner);
