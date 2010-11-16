@@ -13,13 +13,21 @@ void data_available(int signum)
   int request_type;
 
 	retval = nbb_read_item(CHANNEL_ID, (void**)&recv, &recv_len);
- 
-printf("nameserver recv: %s\n", recv);
 
-  request_type = atoi(strtok(recv, " "));
+	// This is kind of a hack
+	// Do an extra resize and copy to null terminate
+	char* recv_str = (char*)calloc(recv_len+1, sizeof(char));
+	memcpy(recv_str, recv, recv_len);
+	recv_str[recv_len] = '\0';
+ 
+printf("nameserver recv: %s\n", recv_str);
+
+  request_type = atoi(strtok(recv_str, " "));
   handle_connection[request_type](strtok(NULL, ""));
 
   signal(SIGUSR1, data_available);
+  free(recv);
+  free(recv_str);
 }
 
 //TODO: arg is somehow messed up on first connection, ><

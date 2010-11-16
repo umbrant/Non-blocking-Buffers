@@ -15,7 +15,7 @@ sem_t *sem_id;   // POSIX semaphore
 #define NEW_CONN_NOTIFY_MSG "**Q_Q**"
 #define NEW_CONN_NOTIFY_MSG_LEN (sizeof(NEW_CONN_NOTIFY_MSG) - 1)
 
-char* nbb_nameserver_connect(const char* request)
+int nbb_nameserver_connect(const char* request, char** ret, int* ret_len)
 {
   int nameserver_pid = 0;
   FILE* pFile;
@@ -25,7 +25,7 @@ char* nbb_nameserver_connect(const char* request)
 
   // Should be reversed since what's written by service is read by nameserver
   if(nbb_open_channel(NULL, NAMESERVER_WRITE, NAMESERVER_READ, !IPC_CREAT)) {
-    return NULL;
+    return -1;
   }
 
   pFile = fopen(NAMESERVER_PID_FILE, "r+"); 
@@ -35,11 +35,17 @@ char* nbb_nameserver_connect(const char* request)
   nbb_insert_item(0, request, strlen(request));
   kill(nameserver_pid, SIGUSR1);
 
+  // Poll until we get something
   do{ 
     retval = nbb_read_item(0, (void**)&recv, &recv_len);
   } while (retval == BUFFER_EMPTY || retval == BUFFER_EMPTY_PRODUCER_INSERTING);
 
-  return recv;
+  // Set return values
+  *ret = recv;
+  *ret_len = recv_len;
+
+  // No errors, we're happy
+  return 0;
 }
 
 int init_nameserver()
@@ -67,10 +73,8 @@ int init_nameserver()
 
 int nbb_init_service(int num_channels, const char* name) 
 {
-  printf("** nbb_init_service\n");
-  char request[100];
+  char request[MAX_MSG_LEN] = {};
   char num_channel[2]; // TODO: Make it constants?
-  char* recv;
   char pid[PID_MAX_STRLEN + 1];
 
   if(num_channels < 0) {
@@ -94,21 +98,24 @@ int nbb_init_service(int num_channels, const char* name)
   sprintf(pid, "%d", getpid());
 
   strcpy(request, SERVICE);
-
   strcat(request, " ");
   strcat(request, name);
-
   strcat(request, " ");
-  printf("** nbb_init_service almost done\n");
-  printf("request: %s, len: %d\n", request, (int) strlen(request));
   strcat(request, num_channel); 
-
-  printf("** nbb_init_service almost done\n");
   strcat(request, " ");
   strcat(request, pid);
 
   printf("** nbb_init_service almost done\n");
-  recv = nbb_nameserver_connect(request);
+  printf("request: %s, len: %zu\n", request, strlen(request));
+
+  char* recv;
+  int recv_len;
+  
+  if(nbb_nameserver_connect(request, &recv, &recv_len)) {
+    printf("! nbb_init_service(): Could not connect to nameserver\n");
+    sem_post(sem_id);
+    return -1;
+  }
 
   if(!strcmp(recv, NAMESERVER_CHANNEL_FULL)) {
     printf("! nbb_init_service(): Reserving channel unsuccessful\n");
@@ -130,6 +137,7 @@ int nbb_init_service(int num_channels, const char* name)
         //TODO: service_exit();
         printf("! nbb_init_service(): Failed to open the %d-th channel\n", i);
         sem_post(sem_id);
+        free(recv);
         return -1;
       }
       tmp = strtok(NULL, " ");
@@ -138,6 +146,7 @@ int nbb_init_service(int num_channels, const char* name)
     signal(SIGUSR1, nbb_recv_client_data);
 
     sem_post(sem_id);
+    free(recv);
     return 0;
   }
   // END CRITICAL SECTION
@@ -149,7 +158,6 @@ int nbb_connect_service(const char* service_name)
 {
   char request[MAX_MSG_LEN];
   int ret_code;
-  char* recv;
 
   if(!service_name) {
     printf("! nbb_connect_service(): Null name\n");
@@ -167,7 +175,12 @@ int nbb_connect_service(const char* service_name)
   strcat(request, " ");
   strcat(request, service_name);
 
-  recv = nbb_nameserver_connect(request);
+  char* recv;
+  int recv_len;
+  if(nbb_nameserver_connect(request, &recv, &recv_len)) {
+    printf("! nbb_connect_service(): Could not connect to nameserver!\n");
+    return -1;
+  } 
 
   if(!recv) {
     ret_code = -1;
@@ -218,12 +231,18 @@ int nbb_connect_service(const char* service_name)
 	return ret_code;
 }
 
-void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func)
+void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg)
 {
   int i;
-  for(i = 0;i < PROCESS_MAX_SERVICES;i++) {
+  for(i = 0;i < SERVICE_MAX_CHANNELS;i++) {
+    printf("owner: %s\n", owner);
+    if(!channel_list[i].in_use) {
+      continue;
+    }
+
     if(!strcmp(owner, channel_list[i].owner)) {
       channel_list[i].new_conn = func;
+      channel_list[i].arg = arg;
     }
   }
 }
@@ -231,7 +250,11 @@ void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func)
 void nbb_set_cb_new_data(char* owner, cb_new_data_func func)
 {
   int i;
-  for(i = 0;i < PROCESS_MAX_SERVICES;i++) {
+  for(i = 0;i < SERVICE_MAX_CHANNELS;i++) {
+    if(!channel_list[i].in_use) {
+      continue;
+    }
+
     if(!strcmp(owner, channel_list[i].owner)) {
       channel_list[i].new_data = func;
     }
@@ -337,7 +360,6 @@ void nbb_recv_client_data(int signum)
 
 int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int is_ipc_create)
 {
-printf("** nbb_open_channel\n");
 	int shmid;
 	unsigned char * shm;
   int free_slot;
@@ -399,7 +421,6 @@ printf("** nbb_open_channel\n");
 
   delay_buffers[free_slot].len = 0;
 
-printf("** nbb_open_channel done\n");
   return free_slot;
 }
 

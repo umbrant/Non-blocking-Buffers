@@ -58,8 +58,8 @@ enum {
 // Hardcode for now. We can generalize the function prototype later.
 
 // New connection event
-typedef void (*cb_new_conn_func)(int slot_id, void *arg);
-void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func);
+typedef void (*cb_new_conn_func)(int slot_id);
+void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg);
 
 // New data event (available to read)
 typedef void (*cb_new_data_func)(int slot_id);
@@ -85,6 +85,7 @@ struct channel {
   char* owner;
   cb_new_conn_func new_conn;
   cb_new_data_func new_data;
+  void* arg;
 
   int in_use;
 };
@@ -127,7 +128,7 @@ int nbb_init_service(int num_channels, const char* name);
 int nbb_connect_service(const char* service_name);
 
 // Communicate with the nameserver
-char* nbb_nameserver_connect(const char* request);
+int nbb_nameserver_connect(const char* request, char** ret, int* ret_len);
 
 // Open & close channels
 int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int is_ipc_create);
