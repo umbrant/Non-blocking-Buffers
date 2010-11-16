@@ -2,7 +2,7 @@
 
 #define NUM_CHANNELS 5 
 
-static void on_new_connection(int slot_id)
+static void on_new_connection(int slot_id, void *arg)
 {
   printf("GUI got new connection on slot %d\n", slot_id);
 }

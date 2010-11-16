@@ -31,8 +31,8 @@ int main()
     printf("Enter message to send to server: ");
     scanf("%s", msg);
 
-    if(option == 1) nbb_client_send(service_name, msg); 
-    if(option == 2) nbb_client_send(service_name_other, msg);
+    if(option == 1) nbb_client_send(service_name, msg, strlen(msg)); 
+    if(option == 2) nbb_client_send(service_name_other, msg, strlen(msg));
 
     printf("bytes available: %d\n", nbb_bytes_available(option));
     printf("How many bytes do you want to read: ");
