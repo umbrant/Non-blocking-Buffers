@@ -326,7 +326,7 @@ void nbb_recv_client_data(int signum)
         // Received data includes null byte
         if (recv_len == NEW_CONN_NOTIFY_MSG_LEN + 1 &&
             memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN + 1) == 0) {
-            channel_list[i].new_conn(i);
+            channel_list[i].new_conn(i, channel_list[i].arg);
         }
       }
 

@@ -18,7 +18,7 @@ int main()
     printf("Enter message to send to server: ");
     scanf("%s", msg);
 
-    nbb_client_send(service_name, msg); 
+    nbb_client_send(service_name, msg, strlen(msg));
 
     printf("bytes available: %d\n", nbb_bytes_available(1)); //hardcoded, xD
     printf("How many bytes do you want to read: ");
