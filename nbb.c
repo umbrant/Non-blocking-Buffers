@@ -123,7 +123,8 @@ int nbb_init_service(int num_channels, const char* name)
     return -1;
   }
   else {
-    printf("** Acquired the following channels: %s\n", recv);
+    printf("recv (%d): %.*s\n", recv_len, recv_len, recv);
+    printf("** Acquired the following channels: %.*s\n", recv_len, recv);
 
     int i;
     int channel;
@@ -353,14 +354,13 @@ void nbb_recv_client_data(int signum)
 
       // XXX: This is for debugging. Remove before production.
       // Reply message
-      //strcpy(reply_msg, "acknowledged the message: ");
       reply_msg = (char*)calloc(recv_len, sizeof(char));
       memcpy(reply_msg, recv, recv_len);
       nbb_insert_item(i, reply_msg, recv_len);
+      free(reply_msg);
 
       recv_len = 0;
       free(recv);
-      free(reply_msg);
     }
 
   }
@@ -557,7 +557,6 @@ void nbb_flush_shm(int slot, char* array_to_flush, int size)
 }
 
 int nbb_insert_item(int channel_id, const void* ptr_to_item, size_t size)
-	//							struct obj** ptr_to_defunct_item)
 {
   assert(channel_id >= 0 && channel_id < SERVICE_MAX_CHANNELS);
   assert(ptr_to_item != NULL && size >= 0);
@@ -571,7 +570,6 @@ int nbb_insert_item(int channel_id, const void* ptr_to_item, size_t size)
   assert(ptr_to_item != NULL && size >= 0);
 
   if (buf->last_update_counter - temp_ac == 2 * BUFFER_SIZE) {
-  	//ptr_to_defunct_item = NULL;
     return BUFFER_FULL;
   }
 

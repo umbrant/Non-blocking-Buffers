@@ -84,7 +84,7 @@ void handle_service(char* arg)
   int num_channels = atoi(strtok(NULL, " "));
   int service_pid = atoi(strtok(NULL, " "));
   int slot;
-  char* msg = (char*)malloc(sizeof(char)*50);
+  char* msg = (char*)calloc(50,sizeof(char));
   int i;
 
   slot = reserve_service_slot();
@@ -110,7 +110,7 @@ void handle_service(char* arg)
   else {
     printf("** Able to reserve %d channels\n", num_channels);
     for(i = 0;i < service_lists[slot].num_channels;i++) {
-      char tmp[2]; 
+      char tmp[5] = "\0"; 
       sprintf(tmp, "%d", service_lists[slot].channel_ids[i]);
       strcat(msg, tmp);
       strcat(msg, " "); 
