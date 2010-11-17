@@ -431,7 +431,7 @@ int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int i
     strcpy(channel_list[free_slot].owner, owner);
   }
 
-  delay_buffers[free_slot].len = 0;
+  memset(&delay_buffers[free_slot], 0, sizeof(struct delay_buffer));
 
   return free_slot;
 }
@@ -474,9 +474,9 @@ int nbb_free_channel_slot()
  */
 int nbb_read_bytes(int slot, char* buf, int size)
 {
-  delay_buffer_t* delay_buffer = &(delay_buffers[slot]);
+  assert(slot >= 0 && buf != NULL && size >= 0);
 
-  assert(slot >= 0 && buf != NULL);
+  delay_buffer_t* delay_buffer = &(delay_buffers[slot]);
 
   if(!size) {
     return 0;
@@ -535,21 +535,20 @@ void nbb_flush_shm(int slot, char* array_to_flush, int size)
   assert(slot >= 0 && slot < SERVICE_MAX_CHANNELS);
   assert(array_to_flush != NULL && size >= 0);
 
+  int new_size = 0;
+
   if (size == 0)
     return;
 
+  // Grow the buffer and append |array_to_flush|
   delay_buffer_t* buffer = &(delay_buffers[slot]);
-  char* tmp = (char*)malloc(sizeof(char) * buffer->len);
-
-  memcpy(tmp, buffer->content, buffer->len);
-
-  buffer->content = (char*)realloc(buffer->content, size + buffer->len);
-  memcpy(buffer->content, tmp, buffer->len);
+  new_size = buffer->len + size;
+  buffer->content = (char *) realloc(buffer->content, new_size);
   memcpy(buffer->content + buffer->len, array_to_flush, size);
-  buffer->len += size - 1;
+  buffer->len = new_size;
 
-  //printf("** Intermediate buffer content: %s\n", buffer->content);
-  free(tmp);
+  //printf("** Intermediate buffer content: '%.*s' (%d bytes)\n",
+  //       buffer->len, buffer->content, buffer->len);
 }
 
 int nbb_insert_item(int channel_id, const void* ptr_to_item, size_t size)

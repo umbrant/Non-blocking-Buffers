@@ -1,13 +1,16 @@
 #include "nbb.h"
+#include <assert.h>
 
 int main() 
 {
   char* service_name = (char*)malloc(sizeof(char)*50);
   char* service_name_other = (char*)malloc(sizeof(char)*50);
 	char* msg = (char*)malloc(50*sizeof(char));
+  int msg_len;
   int size;
   int option;
-  char* array = (char*)malloc(sizeof(char));
+  char* array = (char*)malloc(sizeof(char) * MAX_MSG_LEN);
+  int array_size = MAX_MSG_LEN;
 
   strcpy(service_name, GUI);
   strcpy(service_name_other, "GUI2");
@@ -31,8 +34,11 @@ int main()
     printf("Enter message to send to server: ");
     scanf("%s", msg);
 
-    if(option == 1) nbb_client_send(service_name, msg, strlen(msg)); 
-    if(option == 2) nbb_client_send(service_name_other, msg, strlen(msg));
+    msg_len = strlen(msg);
+    printf("User entered '%s' (%d bytes)\n", msg, msg_len);
+
+    if(option == 1) nbb_client_send(service_name, msg, msg_len); 
+    if(option == 2) nbb_client_send(service_name_other, msg, msg_len);
 
     printf("bytes available: %d\n", nbb_bytes_available(option));
     printf("How many bytes do you want to read: ");
@@ -46,11 +52,18 @@ int main()
       continue;
     }
 
-    memset(array, '\0', strlen(array));
-    array = (char*)realloc(array, sizeof(char) * size);
+    if (size >= array_size) {
+      // Grow the array size and ignore old contents (no need for realloc)
+      free(array);
+      array = (char *) malloc(sizeof(char) * 2 * array_size);
+      assert(array != NULL);
+      array_size = 2 * array_size;
+    }
+
     nbb_read_bytes(option, array, size);
 
-    printf("read bytes: %s\n", array);
+    // array might be not null-terminated
+    printf("read %d bytes: '%.*s'\n", size, size, array);
   }
 
   printf("\n********Statistic********\n");
