@@ -242,6 +242,7 @@ void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg)
     if(channel_list[i].owner && !strcmp(owner, channel_list[i].owner)) {
       channel_list[i].new_conn = func;
       channel_list[i].arg = arg;
+      printf("***NBB***: Set new_conn callback for '%s'\n", owner);
     }
   }
 }
@@ -317,6 +318,9 @@ void nbb_recv_client_data(int signum)
   int retval = -1;
   char* reply_msg;
   int is_new_conn_msg = 0;
+
+  // Attempt to debug Qt. XXX: Remove when done.
+  printf("***NBB***: Inside signal handler\n");
 
   // Since i = 0 is already reserved for nameserver
   for(i = 1;channel_list[i].in_use && i < SERVICE_MAX_CHANNELS;i++) {
