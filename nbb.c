@@ -123,7 +123,7 @@ int nbb_init_service(int num_channels, const char* name)
     return -1;
   }
   else {
-    printf("** Acquired the following channels: %.*s\n", recv_len, recv);
+    printf("** Acquired the following channels: %s\n", recv);
 
     int i;
     int channel;
@@ -329,6 +329,7 @@ void nbb_recv_client_data(int signum)
     if(retval == OK) {
       if (recv_len == NEW_CONN_NOTIFY_MSG_LEN &&
           memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN) == 0) {
+        printf("***NBB***: New connection on slot %d\n", i);
         is_new_conn_msg = 1;
       }
 
