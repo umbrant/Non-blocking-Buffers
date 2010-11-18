@@ -238,7 +238,7 @@ int nbb_connect_service(const char* client_name, const char* service_name)
 	return ret_code;
 }
 
-void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg)
+void nbb_set_cb_new_connection(const char* owner, cb_new_conn_func func, void* arg)
 {
   int i;
 
@@ -258,7 +258,7 @@ void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg)
   }
 }
 
-void nbb_set_cb_new_data(char* owner, cb_new_data_func func)
+void nbb_set_cb_new_data(const char* owner, cb_new_data_func func)
 {
   int i;
 
@@ -278,11 +278,9 @@ void nbb_set_cb_new_data(char* owner, cb_new_data_func func)
 int nbb_send(const char* destination, const char* msg, size_t msg_len)
 {
   int i;
-  char* recv;
-  size_t recv_len;
   // int retval;
 
-printf("** dest: %s, msg: %s, msg_len: %d\n", destination, msg, msg_len);
+  printf("** dest: %s, msg: %s, msg_len: %d\n", destination, msg, (int) msg_len);
   assert(destination != NULL && msg != NULL);
 
   if (msg_len == 0) {
