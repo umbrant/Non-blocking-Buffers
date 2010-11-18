@@ -482,37 +482,32 @@ int nbb_read_bytes(int slot, char* buf, int size)
   assert(slot >= 0 && buf != NULL && size >= 0);
 
   delay_buffer_t* delay_buffer = &(delay_buffers[slot]);
+  printf("***NBB***: Delay buffer %d: %d/%d\n",
+         slot, delay_buffer->len, delay_buffer->capacity);
+  assert(delay_buffer->capacity >= delay_buffer->len);
 
-  if(!size) {
+  // Attempt to read 0 bytes or buffer has nothing to read
+  if (size == 0 || delay_buffer->content == NULL || delay_buffer->len == 0) {
     return 0;
   }
 
+  assert(delay_buffer->content != NULL && delay_buffer->len > 0);
+
+  // Read minimum of the requested length and available data
   if(size > delay_buffer->len) {
     size = delay_buffer->len;
   }
 
-  int new_len = delay_buffer->len - size;
-  char* tmp;
-
-  /*
-  if(new_len <= 0) {
-    perror("! Not enough bytes\n");
-    return -1;
-  }
-  */
-
-  tmp = (char*)malloc(new_len);
-
+  // Read |size| bytes into |buf| and update statistics
   memcpy(buf, delay_buffer->content, size);
-  memcpy(tmp, delay_buffer->content + size, new_len); 
-
-  delay_buffer->content = (char*)realloc(delay_buffer->content, new_len);
-  memcpy(delay_buffer->content, tmp, new_len); 
-  delay_buffer->len = new_len;
-
   channel_list[slot].read_count += size;
 
-  free(tmp);
+  // Move remaining data (if any) into the front of buffer
+  int new_len = delay_buffer->len - size;
+  if (new_len > 0) {
+    memmove(delay_buffer->content, delay_buffer->content + size, new_len);
+  }
+  delay_buffer->len = new_len;
 
   return size;
 }
@@ -540,15 +535,23 @@ void nbb_flush_shm(int slot, char* array_to_flush, int size)
   assert(slot >= 0 && slot < SERVICE_MAX_CHANNELS);
   assert(array_to_flush != NULL && size >= 0);
 
-  int new_size = 0;
-
   if (size == 0)
     return;
 
-  // Grow the buffer and append |array_to_flush|
   delay_buffer_t* buffer = &(delay_buffers[slot]);
-  new_size = buffer->len + size;
-  buffer->content = (char *) realloc(buffer->content, new_size);
+  int new_size = buffer->len + size;
+
+  // Grow the buffer if exceeding current capacity
+  if (new_size > buffer->capacity) {
+    // Initial capacity (2 * MAX_MSG_LEN)
+    if (buffer->capacity == 0) {
+      buffer->capacity = MAX_MSG_LEN;
+    }
+    buffer->content = (char *) realloc(buffer->content, 2 * buffer->capacity);
+    buffer->capacity = 2 * buffer->capacity;
+  }
+
+  // Append new data to the end (or beginning if it's the first flush)
   memcpy(buffer->content + buffer->len, array_to_flush, size);
   buffer->len = new_size;
 
