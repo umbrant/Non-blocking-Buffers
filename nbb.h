@@ -117,7 +117,8 @@ struct buffer {
 typedef struct delay_buffer
 {
   char* content;
-  int len;
+  int len;          // Available data to read
+  int capacity;     // Allocated memory for |content|. |capacity| >= |len|
   int read_count;
 } delay_buffer_t;
 
