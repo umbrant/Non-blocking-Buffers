@@ -2,14 +2,18 @@
 
 #define NUM_CHANNELS 5 
 
+int is_client = 0;
+
 static void on_new_connection(int slot_id, void *arg)
 {
   printf("GUI got new connection on slot %d\n", slot_id);
+  is_client++;
 }
 
 static void on_new_conn_other(int slot_id, void *arg)
 {
   printf("GUI2 got new connection on slot %d\n", slot_id);
+  is_client++;
 }
 
 int main() 
@@ -40,9 +44,11 @@ int main()
   while(1) {
     sleep(1);
 
-//    if((++counter) % 5) continue;
-
-    nbb_send("Client", "Test message", sizeof("Test message"));
-    nbb_send("Client2", "Test message", sizeof("Test message"));
+/*
+    if(is_client == 2 && !(counter % 5)) {
+      nbb_send("Client", "Test message", sizeof("Test message"));
+      nbb_send("Client2", "Test message", sizeof("Test message"));
+    }*/
+    counter++;
   }
 }

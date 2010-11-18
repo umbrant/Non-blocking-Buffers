@@ -216,7 +216,7 @@ int nbb_connect_service(const char* client_name, const char* service_name)
     ret_code = slot;
 
     sprintf(pid, "%d", getpid());
-    strcpy(msg, service_name);
+    strcpy(msg, NEW_CONN_NOTIFY_MSG) ;
     strcat(msg, " ");
     strcat(msg, pid);
     strcat(msg, " ");
@@ -292,7 +292,7 @@ printf("** dest: %s, msg: %s, msg_len: %d\n", destination, msg, msg_len);
 
   // Since i = 0 is already reserved for nameserver
   for(i = 1; i < SERVICE_MAX_CHANNELS;i++) {
-    if(channel_list[i].in_use && 
+    if(channel_list[i].in_use && connected_nodes[i].name &&
        !strcmp(destination, connected_nodes[i].name)) {
       break;
     }
@@ -342,9 +342,30 @@ void nbb_recv_data(int signum)
 
     if(retval == OK) {
       if (memcmp(recv, NEW_CONN_NOTIFY_MSG, NEW_CONN_NOTIFY_MSG_LEN) == 0) {       
+        recv = (char*)realloc(recv, recv_len + 1);
+        recv[recv_len] = '\0';
+
+        char* tmp = NULL;
+
+/*
+				char* msg_start = (char *) recv + NEW_CONN_NOTIFY_MSG_LEN + 1;
+				int name_len = 0;
+
+				connected_nodes[i].pid = (int) strtol(msg_start, &tmp, 10);
+				name_len = recv_len - 1 - NEW_CONN_NOTIFY_MSG_LEN - ((int) (tmp - recv));
+				connected_nodes[i].name = (char *) malloc(sizeof(char) * (name_len+1));
+				assert(connected_nodes[i].name != NULL);
+				strncpy(connected_nodes[i].name, tmp + 1, name_len);
+				connected_nodes[i].name[name_len] = '\0';
+*/
+
         strtok(recv, " ");
-        connected_nodes[i].name = strtok(NULL, " ");
-        connected_nodes[i].pid = atoi(strtok(NULL, " "));
+        tmp = strtok(NULL, " ");
+        connected_nodes[i].pid = atoi(tmp);
+        tmp = strtok(NULL, " ");
+        connected_nodes[i].name = (char*)malloc(strlen(tmp) * sizeof(char));
+        strcpy(connected_nodes[i].name, tmp);
+
 
         printf("***NBB***: New connection on slot %d from client_name: %s with pid: %d\n", i, connected_nodes[i].name, connected_nodes[i].pid);
 
@@ -531,6 +552,7 @@ int nbb_read_bytes(int slot, char* buf, int size)
 
 int nbb_bytes_available(int slot)
 {
+  printf("slot: %d\n", slot);
   assert(slot >= 0 && slot < SERVICE_MAX_CHANNELS);
   return delay_buffers[slot].len;
 }

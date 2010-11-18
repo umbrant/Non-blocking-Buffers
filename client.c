@@ -46,6 +46,7 @@ int main()
 
     if(option == 1) nbb_send(service_name, msg, msg_len); 
     if(option == 2) nbb_send(service_name_other, msg, msg_len);
+    else continue;
 
     printf("bytes available: %d\n", nbb_bytes_available(option));
     printf("How many bytes do you want to read: ");
