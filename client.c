@@ -5,6 +5,10 @@ int main()
 {
   char* service_name = (char*)malloc(sizeof(char)*50);
   char* service_name_other = (char*)malloc(sizeof(char)*50);
+
+  char* client_name = (char*)malloc(sizeof(char)*50);
+  char* client_name_other = (char*)malloc(sizeof(char)*50);
+
 	char* msg = (char*)malloc(50*sizeof(char));
   int msg_len;
   int size;
@@ -15,12 +19,15 @@ int main()
   strcpy(service_name, GUI);
   strcpy(service_name_other, "GUI2");
 
-	if(nbb_connect_service(service_name) < 0) {
+  strcpy(client_name, "Client");
+  strcpy(client_name_other, "Client2");
+
+	if(nbb_connect_service(client_name, service_name) < 0) {
 		printf("Error getting channel!\n");
 		return -1;
 	}
 
-  if(nbb_connect_service(service_name_other) < 0) {
+  if(nbb_connect_service(client_name_other, service_name_other) < 0) {
 		printf("Error getting channel!\n");
 		return -1;
 	}
@@ -37,8 +44,8 @@ int main()
     msg_len = strlen(msg);
     printf("User entered '%s' (%d bytes)\n", msg, msg_len);
 
-    if(option == 1) nbb_client_send(service_name, msg, msg_len); 
-    if(option == 2) nbb_client_send(service_name_other, msg, msg_len);
+    if(option == 1) nbb_send(service_name, msg, msg_len); 
+    if(option == 2) nbb_send(service_name_other, msg, msg_len);
 
     printf("bytes available: %d\n", nbb_bytes_available(option));
     printf("How many bytes do you want to read: ");

@@ -65,8 +65,8 @@ void nbb_set_cb_new_connection(char* owner, cb_new_conn_func func, void* arg);
 typedef void (*cb_new_data_func)(int slot_id);
 void nbb_set_cb_new_data(char* owner, cb_new_data_func func);
 
-struct service_used {
-  char* service_name;
+struct connected_node {
+  char* name;
   int pid;
 };
 
@@ -125,7 +125,7 @@ typedef struct delay_buffer
 int nbb_init_service(int num_channels, const char* name);
 
 // Client tries to connect to a certain service
-int nbb_connect_service(const char* service_name);
+int nbb_connect_service(const char* client_name, const char* service_name);
 
 // Communicate with the nameserver
 int nbb_nameserver_connect(const char* request, char** ret, int* ret_len);
@@ -135,14 +135,14 @@ int nbb_open_channel(const char* owner, int shm_read_id, int shm_write_id, int i
 int nbb_close_channel(int channel_id);
 
 // Sending a message from client to server
-int nbb_client_send(const char* service_name, const char* msg, size_t msg_len);
+int nbb_send(const char* service_name, const char* msg, size_t msg_len);
 
 // Finds a free channel slot
 // Returns the index of the free slot, if it is full, returns -1
 int nbb_free_channel_slot();
 
 // Data is available from client, called via interrupt
-void nbb_recv_client_data(int signum);
+void nbb_recv_data(int signum);
 
 // Flush stuffs in shm to intermediate buffer to allow finer granularity
 void nbb_flush_shm(int slot, char* array_to_flush, int size);

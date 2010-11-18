@@ -35,7 +35,14 @@ int main()
   nbb_set_cb_new_connection(service_name, on_new_connection, NULL);
   nbb_set_cb_new_connection(service_name_other, on_new_conn_other, NULL);
 
-	while(1) {
+  int counter = 0;
+
+  while(1) {
     sleep(1);
+
+//    if((++counter) % 5) continue;
+
+    nbb_send("Client", "Test message", sizeof("Test message"));
+    nbb_send("Client2", "Test message", sizeof("Test message"));
   }
 }
